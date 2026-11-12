@@ -3,9 +3,7 @@
   "permissions": {
     "defaultMode": "default",
     "allow": [
-      "Read",
-      "Glob",
-      "Grep",
+      "Read(./**)",
       "Bash(git status*)",
       "Bash(git diff *)",
       "Bash(git log *)",
