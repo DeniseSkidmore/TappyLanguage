@@ -1,0 +1,18 @@
+# Normalize text to LF in the repo and working tree (bash/python scripts break on CRLF)
+* text=auto eol=lf
+
+# Windows scripts need CRLF (e.g. gradlew.bat)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaries: never touch
+*.png binary
+*.jpg binary
+*.webp binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.jar binary
+*.keystore binary
+*.jks binary
