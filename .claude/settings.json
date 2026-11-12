@@ -4,8 +4,8 @@
     "defaultMode": "default",
     "allow": [
       "Read(./**)",
-      "Edit(./.claude/open-items.md)",
-      "Write(./.claude/open-items.md)",
+      "Edit(./docs/open-items.md)",
+      "Write(./docs/open-items.md)",
       "Bash(git status*)",
       "Bash(git diff *)",
       "Bash(git log *)",
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/open-items.md\"; if [ -f \"$f\" ]; then echo '[SessionStart hook] Contents of .claude/open-items.md (summarize in first reply per CLAUDE.md):'; cat \"$f\"; else echo '[SessionStart hook] .claude/open-items.md not found'; fi"
+            "command": "f=\"$CLAUDE_PROJECT_DIR/docs/open-items.md\"; if [ -f \"$f\" ]; then echo '[SessionStart hook] Contents of docs/open-items.md (summarize in first reply per CLAUDE.md):'; cat \"$f\"; else echo '[SessionStart hook] docs/open-items.md not found'; fi"
           }
         ]
       }

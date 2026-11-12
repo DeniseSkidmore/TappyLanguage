@@ -39,4 +39,4 @@ google-services.json
 .claude/metrics/
 CLAUDE.local.md
 **/__pycache__/**
-.claude/open-items.md
+docs/open-items.md
