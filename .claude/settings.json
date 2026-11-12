@@ -61,6 +61,16 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/open-items.md\"; if [ -f \"$f\" ]; then echo '[SessionStart hook] Contents of .claude/open-items.md (summarize in first reply per CLAUDE.md):'; cat \"$f\"; else echo '[SessionStart hook] .claude/open-items.md not found'; fi"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

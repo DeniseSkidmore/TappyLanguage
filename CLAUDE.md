@@ -16,6 +16,6 @@ Bundle requests with numbered actions.
 
 ## Open items log (Claude's running context)
 `.claude/open-items.md` is Claude's own working file, gitignored and not for the user to maintain. It is exempt from "propose each change": edit it freely without asking.
-- **Session start:** read it, summarize the open items in a short numbered list, and propose which to pick up (or ask if the user already has a task).
+- **First reply of every session (mandatory, even if the user asked something else):** before anything else, summarize the open items in a short numbered list and propose which to pick up, then handle the user's message. A SessionStart hook injects the file's contents into context; if they are not there, Read the file.
 - **During work:** add any undecided question, deferred follow-up, unverified check, or pending [You] action as it comes up. Remove an item once it is resolved or explicitly dropped. Keep entries one line each: tag, date, item, and where it came from.
 - Record final decisions in commit messages, not here; this file holds only what is still open.
