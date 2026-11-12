@@ -4,6 +4,8 @@
     "defaultMode": "default",
     "allow": [
       "Read(./**)",
+      "Edit(./.claude/open-items.md)",
+      "Write(./.claude/open-items.md)",
       "Bash(git status*)",
       "Bash(git diff *)",
       "Bash(git log *)",
