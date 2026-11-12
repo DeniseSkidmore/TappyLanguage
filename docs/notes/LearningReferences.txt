@@ -1,0 +1,16 @@
+# Learning references
+
+## Toolchain
+https://applefy.tech/blog/claude-code-android-studio-kotlin - Claude Code with Android Studio Workflow guide for Kotlin
+https://developer.android.com/studio
+https://plugins.jetbrains.com/plugin/27310-claude-code-beta-
+
+Kotlin Multiplatform fits a modular monolith well. It’s one Gradle build, and module boundaries are enforced at compile time. Android is first-class, and the shared core also compiles for the web. The main alternative is Flutter: it’s a more mature single UI for both Android and web, but it’s less native on Android, and its web output draws to a canvas, which hurts accessibility. 
+
+gh is a command-line tool for GitHub itself: pull requests, issues, CI logs, releases. The main gain is that it gives me GitHub access. I can’t click a GUI, but with gh I can open a PR, read why a CI build failed, or reply to review comments.
+
+Markdown editor in Android Studio - Yes. It comes with a Markdown editor with a split live preview. Mermaid diagram preview is off by default; turn it on under Settings → Languages & Frameworks → Markdown.
+
+## Claude
+
+After a couple of weeks, run /fewer-permission-prompts: it reads your past sessions and suggests rules for the commands you actually kept approving. That’s less work for you and gives tighter rules than guessing.

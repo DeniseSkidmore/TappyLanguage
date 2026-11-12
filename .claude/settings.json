@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(bash .claude/hooks/py .claude/hooks/session_digest.py *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(*pip* install *)",
+      "Bash(conda *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.keystore)",
+      "Read(./**/*.jks)",
+      "Read(~/.ssh/**)",
+      "Read(~/.gradle/gradle.properties)",
+      "Read(./docs/notes/**)"
+    ]
+  },
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/py\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_digest.py\" --hook --log \"$CLAUDE_PROJECT_DIR/.claude/metrics/sessions.jsonl\""
+          }
+        ]
+      }
+    ]
+  }
+}

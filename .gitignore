@@ -33,3 +33,9 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# claude files
+.claude/settings.local.json
+.claude/metrics/
+CLAUDE.local.md
+**/__pycache__/**
