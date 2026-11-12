@@ -5,7 +5,7 @@ allowed-tools: Bash(bash .claude/hooks/py .claude/hooks/session_digest.py *)
 ---
 Session digest:
 
-!`bash .claude/hooks/py .claude/hooks/session_digest.py $ARGUMENTS`
+!`bash .claude/hooks/py .claude/hooks/session_digest.py "$ARGUMENTS"`
 
 Pass the digest above, verbatim and without commentary, to the session-grader
 subagent. Show me its reply unchanged. Then ask whether to append the grade, with
