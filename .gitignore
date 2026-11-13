@@ -40,3 +40,9 @@ google-services.json
 CLAUDE.local.md
 **/__pycache__/**
 docs/open-items.md
+docs/conversation.md
+
+# Third-party data: commit only indexes during this phase
+data/**
+!data/**/
+!data/**/INDEX.csv
