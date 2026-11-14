@@ -13,6 +13,9 @@ is read defensively so a format change degrades the digest instead of failing.
 import argparse, collections, datetime, glob, json, os, re, sys
 
 PROMPT_CHARS = 300
+GAP_CAP_EDITED_MIN = 120  # idle gap counted as active up to this, if files were edited around it
+GAP_CAP_PLAIN_MIN = 30    # otherwise
+EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 PASTED = re.compile(r"<pasted_content[^>]*>(.*?)</pasted_content[^>]*>", re.S)
 
 
@@ -30,12 +33,44 @@ def text_of(content):
     return ""
 
 
+def ts(s):
+    return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def active_minutes(events):
+    """Sum of gaps between transcript lines, each capped.
+
+    A gap is capped at GAP_CAP_EDITED_MIN when files were edited around it:
+    Claude edited files earlier in the current turn (user likely reviewing them),
+    or the user edited a file Claude had read (edited_text_file attachment
+    within a minute after the gap). Otherwise GAP_CAP_PLAIN_MIN.
+    """
+    try:
+        ev = sorted((ts(t), ce, ue, up) for t, ce, ue, up in events)
+    except ValueError:
+        return None
+    if len(ev) < 2:
+        return None
+    user_edit_times = [t for t, _, ue, _ in ev if ue]
+    total, claude_edited_this_turn = 0.0, False
+    for (t0, ce, _, up), (t1, *_rest) in zip(ev, ev[1:]):
+        if up:
+            claude_edited_this_turn = False
+        claude_edited_this_turn = claude_edited_this_turn or ce
+        gap = (t1 - t0).total_seconds() / 60
+        user_edited = any(0 <= (u - t1).total_seconds() <= 60 for u in user_edit_times)
+        cap = GAP_CAP_EDITED_MIN if (claude_edited_this_turn or user_edited) else GAP_CAP_PLAIN_MIN
+        total += min(gap, cap)
+    return round(total, 1)
+
+
 def parse(path):
     usage_by_msg = {}
     tools = collections.Counter()
     errors = collections.Counter()
     tool_names_by_id = {}
     files_edited, prompts, models, stamps = set(), [], set(), []
+    events = []  # (timestamp, claude_edit, user_edit, user_prompt) per transcript line
     session_id = None
 
     with open(path, encoding="utf-8") as fh:
@@ -48,6 +83,10 @@ def parse(path):
             if d.get("timestamp"):
                 stamps.append(d["timestamp"])
             msg = d.get("message") if isinstance(d.get("message"), dict) else {}
+            claude_edit = user_edit = user_prompt = False
+            att = d.get("attachment")
+            if isinstance(att, dict) and att.get("type") == "edited_text_file":
+                user_edit = True  # a file Claude had read was changed outside Claude
 
             if d.get("type") == "assistant":
                 if msg.get("model"):
@@ -60,8 +99,9 @@ def parse(path):
                         tools[name] += 1
                         tool_names_by_id[b.get("id")] = name
                         fp = (b.get("input") or {}).get("file_path")
-                        if fp and name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+                        if fp and name in EDIT_TOOLS:
                             files_edited.add(fp)
+                            claude_edit = True
 
             elif d.get("type") == "user" and not d.get("isMeta") and not d.get("isSidechain"):
                 content = msg.get("content")
@@ -74,6 +114,9 @@ def parse(path):
                     t = PASTED.sub(r"\1", text_of(content)).strip()
                     if t and not t.startswith("<"):
                         prompts.append(t)
+                        user_prompt = True
+            if d.get("timestamp"):
+                events.append((d["timestamp"], claude_edit, user_edit, user_prompt))
 
     tok = collections.Counter()
     for u in usage_by_msg.values():
@@ -83,12 +126,12 @@ def parse(path):
 
     minutes = None
     if len(stamps) >= 2:
-        f = lambda s: datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-        minutes = round((f(max(stamps)) - f(min(stamps))).total_seconds() / 60, 1)
+        minutes = round((ts(max(stamps)) - ts(min(stamps))).total_seconds() / 60, 1)
 
     return {
         "session_id": session_id, "transcript": path,
         "ended": max(stamps) if stamps else None, "wall_minutes": minutes,
+        "active_minutes": active_minutes(events),
         "api_turns": len(usage_by_msg), "user_prompts": len(prompts),
         "tokens": dict(tok), "models": sorted(models),
         "tool_calls": dict(tools), "tool_errors": dict(errors),
@@ -99,7 +142,8 @@ def parse(path):
 def markdown(m):
     t = m["tokens"]
     out = [f"# Session digest {m['session_id']}",
-           f"- Wall time: {m['wall_minutes']} min; user prompts: {m['user_prompts']}; "
+           f"- Wall time: {m['wall_minutes']} min; active: {m['active_minutes']} min "
+           f"(gaps capped {GAP_CAP_EDITED_MIN} min after edits, else {GAP_CAP_PLAIN_MIN}); user prompts: {m['user_prompts']}; "
            f"API turns: {m['api_turns']}; models: {', '.join(m['models'])}",
            f"- Tokens: in {t.get('input_tokens', 0):,} | out {t.get('output_tokens', 0):,} | "
            f"cache write {t.get('cache_creation_input_tokens', 0):,} | "

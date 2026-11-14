@@ -20,6 +20,7 @@ When we get to requirements analysis phase, requirements are in the docs/require
 Propose each change and wait for my approval before editing; never widen permissions on your own; When finished, list each item as verified, blocked (why), or not attempted.
 Begin proposals with an action list tagged [Claude] / [You] / [Decide]; explanation follows.
 Bundle requests with numbered actions.
+never edit files with sed or shell
 
 ## Open items log (Claude's running context)
 `docs/open-items.md` is Claude's own working file, gitignored and not for the user to maintain. It is exempt from "propose each change": edit it freely without asking.

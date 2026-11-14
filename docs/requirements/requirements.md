@@ -26,9 +26,8 @@ Language data the app needs:
 * Greek audio for Greek words.
 * English audio for the English translation of Greek words.
 * Greek word frequency.
-* Sentences (for sentence mode).
-* Phrasebooks (each is a named subset of words, phrases or sentences):
-	* Letter sounds
+* Phrases (= sentences): ordered words, with audio. Used in sentence mode and phrasebooks.
+* Phrasebooks (each is a named selection of phrases to study):
 	* Getting directions
 	* Airport
 	* Restaurant
@@ -50,7 +49,15 @@ Phrasebooks:
 * Claude drafts each phrasebook from items that have recordings, with Greek checked against Wiktionary.
 * The user approves the English for each phrasebook before it is used.
 
+Language files (proposal, see [data-model.md](data-model.md)): one pack per language (words, phrases, audio, attribution) plus one pair pack per language pair (translations, phrasebooks), so English audio is shared rather than duplicated.
+
 Later (not now): an in-app tool for editing datasets, including recording audio.
+
+## Items
+* **Words** are the targets (what the user taps). Words or phrases can be prompts.
+* **Phrases** (= sentences) are made of words. They keep the same play data as words.
+* **Letters** are parts of words and are not tracked individually. The selection engine uses them only to prefer new words that share letters with words already learning or fluent.
+* A **phrasebook** is studied in two steps: first the words in its phrases, then each phrase once all its words are learning or fluent.
 
 ## Prompt / target combinations
 The prompt is the audio played; the target is the text tapped.
@@ -74,7 +81,7 @@ When a word is selected, its combination is chosen with higher probability for t
 ## User history
 Running values only; no long-term play log.
 * During a level the app keeps that level's plays; they are folded into the running values while the between-levels screen shows, then discarded.
-* Per word **and per prompt/target combination** (separate values; each combination is a different skill), the app stores:
+* Per item (word or phrase) **and per prompt/target combination** (separate values; each combination is a different skill), the app stores:
 	* repetitions
 	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO)
 	* tap latency: weighted average, recent plays weighted more; calibrates difficulty
@@ -82,19 +89,22 @@ Running values only; no long-term play log.
 	* time last played: weighted lightly in selection, only to avoid boredom from back-to-back repeats
 * A word whose last play failed stays in rotation; "last played" must never push it out.
 * How strongly recent results outweigh history (the weighting factor): TBD whether it auto-adapts per user (like FSRS-6's trainable forgetting curve) or is a setting.
-* Letters: the same fields.
 * Current level number per game mode, kept across app launches.
 
 ## Play item selection
-Draft; exact rules TBD. Rules will be tuned by playing. Each rule will be compared against published schemes (FSRS, Leitner, SM-2, half-life regression) when drafted.
+Draft; rules will be tuned by playing. Equations, with comparisons to published schemes (FSRS, Leitner, SM-2, half-life regression): see [selection.md](selection.md).
 
 * Each word-combination has a **predicted recall** R (0–1), computed from weighted success and time since last success (forgetting curve). Comparable to FSRS retrievability, but used for word selection and difficulty, not only scheduling.
 * A new word starts at R = 0 with the lowest stability, so it is simply the most unproven word; no special case.
 * A word unseen for a long time decays toward low R and is treated like an unproven word, but its history gives it higher stability so it recovers faster (relearning). This also handles a user returning after a long break.
-* Word states are ranges of R (thresholds a, b tuned by playing):
+* Word states are ranges of R:
 	* **unproven**: R < a. Presented only alongside words at least "learning", so the answer is clear from context.
 	* **learning**: a ≤ R < b.
 	* **fluent**: R ≥ b.
+* The fluent threshold b is fixed. The unproven/learning boundary a is **dynamic**: it moves so the learning pool never holds too many words at once.
+* Stability is a single value per skill.
+* New words are preferred when they share letters with words already learning or fluent.
+* A phrase is eligible only when all its words are learning or fluent.
 * At most 1 unproven word (new or forgotten) per level, and only when every other target is at least "learning".
 * A level contains at most 5 distinct non-fluent words.
 * Lower weighted success → higher selection probability.

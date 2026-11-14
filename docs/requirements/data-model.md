@@ -1,141 +1,28 @@
 # Data model (draft)
 
-Derived from [requirements.md](requirements.md) as of 2026-11-12. Conceptual, not an implementation: names and types will change. `TBD` fields are still under discussion.
+Derived from [requirements.md](requirements.md). Conceptual, not an implementation: names and types will change. Selection math: [selection.md](selection.md).
 
-Three groups:
-- **Language pack**: read-only data shipped in the language file.
-- **User state**: running values saved on the device.
-- **Level session**: in memory only; folded into user state on the between-levels screen, then discarded.
+| Diagram | Contents | Lifetime |
+|---|---|---|
+| [diagrams/language-pack.mmd](diagrams/language-pack.mmd) | Language packs and pair packs | Read-only, shipped |
+| [diagrams/user-data.mmd](diagrams/user-data.mmd) | Skill rows, progress, settings | Saved on device |
+| [diagrams/level-session.mmd](diagrams/level-session.mmd) | One level's plays and result | Memory only; folded into user data between levels, then discarded |
 
-```mermaid
-classDiagram
-    direction LR
+Diagrams reference objects defined in another diagram by foreign key (e.g. `Skill.itemId` → `Word.id`) instead of drawing them twice.
 
-    %% ---------- Language pack (read-only, shipped) ----------
-    class LanguagePack {
-        learningLanguage : String
-        knownLanguage : String
-        version : String
-    }
-    class Word {
-        id : String
-        learningText : String
-        knownText : String
-        length : Int
-        frequencyRank : Int
-        kind : ItemKind
-    }
-    class Sentence {
-        id : String
-        words : List~Word~
-    }
-    class Phrasebook {
-        name : String
-        englishApproved : Boolean
-    }
-    class AudioClip {
-        language : String
-        sourceFile : String
-        startMs : Int?
-        endMs : Int?
-    }
-    class SourceRecord {
-        path : String
-        sourceUrl : String
-        author : String
-        license : String
-        retrieved : Date
-    }
-    class ItemKind {
-        <<enumeration>>
-        LETTER
-        WORD
-    }
+## Language files (proposal; see conversation thread 14)
+- **One language pack per language** (Greek, English, …): words, phrases, audio, attribution. No translations. The English pack is shared by every pair, so English audio is never duplicated.
+- **One pair pack per language pair** (el-en): word and phrase translations plus phrasebooks. Small, text only.
+- Adding a new learning language adds its own pack, a pair pack, and only the English words and phrases that pair needs.
 
-    LanguagePack "1" *-- "many" Word
-    LanguagePack "1" *-- "many" Sentence
-    LanguagePack "1" *-- "many" Phrasebook
-    Sentence "1" o-- "many" Word : ordered
-    Phrasebook "1" o-- "many" Word
-    Phrasebook "1" o-- "many" Sentence
-    Word "1" --> "1..2" AudioClip : learning + known audio
-    Sentence "1" --> "1..2" AudioClip
-    AudioClip "many" --> "1" SourceRecord : attribution (INDEX.csv)
+## Items
+- **Words** are the targets (what the user taps).
+- **Phrases** (= sentences) contain ordered words. A word or a phrase can be the prompt.
+- **Letters** are not tracked as items. They are derived from word text and used only by the selection engine (introduce new words that share letters with words already learning or fluent).
+- **Phrasebook** = a named selection of phrases. Studying one means first learning the words in its phrases, then the phrases once all their words are learning or fluent.
 
-    %% ---------- User state (saved on device) ----------
-    class WordSkill {
-        wordId : String
-        combination : Combination
-        repetitions : Int
-        successAvg : Double
-        latencyAvgMs : Double
-        stability : Double
-        lastSuccess : Timestamp
-        lastPlayed : Timestamp
-        predictedRecall() Double
-        state() WordState
-        unlocked : Boolean
-    }
-    class ModeProgress {
-        contentMode : ContentMode
-        level : Int
-        levelSuccessAvg : Double
-    }
-    class Settings {
-        gameplayInterface : String
-        contentMode : ContentMode
-        difficulty : Int
-        selectedPhrasebook : String?
-        recencyWeight : Double  TBD
-    }
-    class Combination {
-        <<enumeration>>
-        LEARNING_LEARNING
-        KNOWN_LEARNING
-        LEARNING_KNOWN
-    }
-    class WordState {
-        <<enumeration>>
-        UNPROVEN
-        LEARNING
-        FLUENT
-    }
-    class ContentMode {
-        <<enumeration>>
-        WORD
-        SENTENCE
-        PHRASEBOOK
-    }
-
-    Word "1" --> "0..3" WordSkill : one per combination
-    WordSkill ..> Combination
-    WordSkill ..> WordState : derived from R
-    ModeProgress ..> ContentMode
-    Settings ..> ContentMode
-
-    %% ---------- Level session (in memory only) ----------
-    class Level {
-        number : Int
-        plannedPlays : Int
-        targets : List~WordSkill~
-        distractors : List~Word~
-    }
-    class Play {
-        wordId : String
-        combination : Combination
-        success : Boolean
-        latencyMs : Int
-        wrongTapWordId : String?
-    }
-
-    Level "1" *-- "many" Play
-    Play ..> WordSkill : folded in after level
-    Level ..> ModeProgress : updates level, levelSuccessAvg
-```
-
-Notes:
-- **WordSkill** is the core of the spaced repetition: one row per word and combination, with running values only (no long-term log). `predictedRecall()` and `state()` are computed, not stored.
-- **stability** is a single value for now. If we adopt FSRS-7's two-curve idea, it becomes a fast (within-session) and a slow (across-days) stability.
-- **Letters** are modelled as `Word` with `kind = LETTER`, so they share WordSkill and selection.
-- **Sentence score** (hits / (words + wrong taps)) is computed from the level's plays; whether sentences get their own skill rows is TBD.
-- **ModeProgress** is per content mode, matching "level number saved per game mode". If gameplay interfaces multiply, the key becomes (interface, content mode).
+## Notes
+- **Skill** is the core of spaced repetition: one row per item (word or phrase), language pair and combination, with running values only. `predictedRecall()` and `state()` are computed, not stored.
+- **stability** stays a single value.
+- **Skill state boundaries are dynamic**: the unproven/learning boundary moves to keep the learning pool small (see [selection.md](selection.md)).
+- **ModeProgress** is per language pair and content mode. If gameplay interfaces multiply, the key gains the interface.

@@ -15,19 +15,19 @@
       "Bash(bash .claude/hooks/py .claude/hooks/session_digest.py *)"
     ],
     "ask": [
-      "Bash(git push *)",
       "Bash(*pip* install *)",
       "Bash(conda *)",
-      "Bash(git reset --hard*)",
-      "Bash(git clean*)",
       "Bash(git checkout -- *)",
-      "Bash(git restore *)",
-      "Bash(git rebase*)",
       "Bash(git filter-*)",
       "Bash(git reflog expire*)",
       "Bash(git gc*)"
     ],
     "deny": [
+      "Bash(git push *)",
+      "Bash(git restore *)",
+      "Bash(git rebase*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
       "Bash(git push*--force*)",
       "Bash(git push* -f*)",
       "Bash(git push* +*)",

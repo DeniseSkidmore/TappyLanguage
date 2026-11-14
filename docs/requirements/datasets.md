@@ -11,7 +11,6 @@ First pass, 2026-11-12, from web search. Not legal advice; verify each license o
 | Greek sentence audio | Mozilla Common Voice Scripted Speech 25.0, Greek | CC0 1.0 | ~17,300 validated clips, ~20 validated hours, 452 speakers. Sentences, not words: would need word-level alignment to cut single words. Possible source for phrasebook items. |
 | Greek → English translation | Wiktionary via kaikki.org (wiktextract JSONL) | CC BY-SA (Wiktionary dual CC BY-SA / GFDL) | Rich: glosses, part of speech, inflections, often links to the audio file names above. Exact Modern Greek download URL to confirm. |
 | Greek word frequency | hermitdave/FrequencyWords (OpenSubtitles 2018), `el` lists | Content CC BY-SA 4.0; code MIT | 50k list; subtitle-based, so it favours conversational words (good for this app). |
-| Letter sounds | Commons Greek alphabet / vowel recordings | Per file | Few files; coverage to check. |
 
 ## License implications
 

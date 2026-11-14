@@ -1,0 +1,64 @@
+classDiagram
+    %% Saved user data (on device). itemId and pair fields are foreign keys into the language files (language-pack.mmd).
+    direction LR
+
+    class Skill {
+        itemType : ItemType
+        itemId : String  FK Word.id or Phrase.id
+        pair : String  FK PairPack, e.g. el-en
+        combination : Combination
+        unlocked : Boolean
+        repetitions : Int
+        successAvg : Double
+        latencyAvgMs : Double
+        stability : Double
+        lastSuccess : Timestamp?
+        lastPlayed : Timestamp?
+        predictedRecall() Double
+        state() SkillState
+    }
+    class ModeProgress {
+        pair : String
+        contentMode : ContentMode
+        level : Int
+        difficulty : Int
+        levelSuccessAvg : Double
+    }
+    class Settings {
+        activePair : String
+        gameplayInterface : String
+        contentMode : ContentMode
+        selectedPhrasebook : String?
+        recencyWeight : Double
+    }
+
+    class ItemType {
+        <<enumeration>>
+        WORD
+        PHRASE
+    }
+    class Combination {
+        <<enumeration>>
+        LEARNING_LEARNING
+        KNOWN_LEARNING
+        LEARNING_KNOWN
+    }
+    class SkillState {
+        <<enumeration>>
+        UNPROVEN
+        LEARNING
+        FLUENT
+    }
+    class ContentMode {
+        <<enumeration>>
+        WORD
+        SENTENCE
+        PHRASEBOOK
+    }
+
+    Skill ..> ItemType
+    Skill ..> Combination
+    Skill ..> SkillState : derived from R and dynamic boundary
+    ModeProgress ..> ContentMode
+    Settings ..> ContentMode
+    Settings "1" --> "many" ModeProgress : one per pair and content mode
