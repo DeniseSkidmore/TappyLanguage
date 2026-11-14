@@ -41,6 +41,7 @@ CLAUDE.local.md
 **/__pycache__/**
 docs/open-items.md
 docs/conversation.md
+.obsidian/
 
 # Third-party data: commit only indexes during this phase
 data/**

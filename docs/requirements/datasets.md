@@ -7,7 +7,7 @@ First pass, 2026-11-12, from web search. Not legal advice; verify each license o
 | Need | Best candidate | License | Fit |
 |---|---|---|---|
 | Greek word audio (native speaker) | Lingua Libre / Wikimedia Commons `El-<word>.ogg` files | CC BY-SA 4.0 (some Commons files vary per file) | Single words, native speakers. Greek coverage unknown; must be measured. |
-| English word audio | Lingua Libre / Commons `En-<word>.ogg` files | CC BY-SA 4.0 (varies per file on Commons) | Large English coverage expected; not measured. |
+| English word audio | Lingua Libre / Commons `En-<word>.ogg` files; gaps recorded by our native English speaker | CC BY-SA 4.0 (varies per file on Commons); own recordings CC BY-SA or CC0 (TBD) | Large English coverage expected; not measured. |
 | Greek sentence audio | Mozilla Common Voice Scripted Speech 25.0, Greek | CC0 1.0 | ~17,300 validated clips, ~20 validated hours, 452 speakers. Sentences, not words: would need word-level alignment to cut single words. Possible source for phrasebook items. |
 | Greek → English translation | Wiktionary via kaikki.org (wiktextract JSONL) | CC BY-SA (Wiktionary dual CC BY-SA / GFDL) | Rich: glosses, part of speech, inflections, often links to the audio file names above. Exact Modern Greek download URL to confirm. |
 | Greek word frequency | hermitdave/FrequencyWords (OpenSubtitles 2018), `el` lists | Content CC BY-SA 4.0; code MIT | 50k list; subtitle-based, so it favours conversational words (good for this app). |

@@ -38,7 +38,9 @@ Language data the app needs:
 	* Famous locations
 
 Constraints:
-* Audio must be recordings of human speakers, not AI-generated. No native speaker is available to record, so only existing recordings are used.
+* Audio must be recordings of human speakers, not AI-generated.
+* Greek: no native speaker is available, so only existing recordings are used.
+* English: a native English speaker is available, so missing English audio can be recorded by us. Each recording is indexed in INDEX.csv with its speaker as author and an open license (CC BY-SA or CC0, TBD).
 * A word, sentence or phrase is playable only if it has a recording in the prompt language. (A text-only mode may be added later.)
 * Where no single-word recording exists, a word may be taken from a slice of a longer recording.
 * Translation data comes from an open-source dataset.
@@ -59,28 +61,42 @@ The prompt is the audio played; the target is the text tapped.
 | known-learning | English | Greek | meaning → Greek |
 | learning-known | Greek | English | Greek → meaning |
 
-known-known is excluded (teaches nothing). Which combinations are in the first release: TBD.
+known-known is excluded (teaches nothing).
+
+Progression order:
+1. **learning-learning** first: reading Greek teaches pronunciation, so later the learner can say a Greek word from its spelling.
+2. **known-learning** next: meaning → Greek.
+3. **learning-known** last, as review: reverses skills already learned.
+
+Combinations unlock **per word**, soon after initial success: a word's next combination unlocks once the previous one reaches "learning" (not fluent).
+When a word is selected, its combination is chosen with higher probability for the combination with the lowest success for that word.
 
 ## User history
 Running values only; no long-term play log.
 * During a level the app keeps that level's plays; they are folded into the running values while the between-levels screen shows, then discarded.
-* Per word **and per prompt/target combination** (TBD: confirm separate values per combination), the app stores:
+* Per word **and per prompt/target combination** (separate values; each combination is a different skill), the app stores:
 	* repetitions
 	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO)
 	* tap latency: weighted average, recent plays weighted more; calibrates difficulty
-	* time last played
-	* time last success (TBD)
+	* time last success: drives forgetting (predicted recall decays from the last proven recall)
+	* time last played: weighted lightly in selection, only to avoid boredom from back-to-back repeats
+* A word whose last play failed stays in rotation; "last played" must never push it out.
+* How strongly recent results outweigh history (the weighting factor): TBD whether it auto-adapts per user (like FSRS-6's trainable forgetting curve) or is a setting.
 * Letters: the same fields.
 * Current level number per game mode, kept across app launches.
 
 ## Play item selection
 Draft; exact rules TBD. Rules will be tuned by playing. Each rule will be compared against published schemes (FSRS, Leitner, SM-2, half-life regression) when drafted.
 
-* Word states (draft, replaces the single "unfamiliar" threshold):
-	* **new / unproven**: no recent success. Presented only alongside words the user has already succeeded at, so the answer is clear from context.
-	* **learning**: some recent success, but below the fluency threshold.
-	* **fluent**: at or above the fluency threshold.
-* A level contains at most 5 distinct non-fluent words (exact split between new and learning TBD).
+* Each word-combination has a **predicted recall** R (0–1), computed from weighted success and time since last success (forgetting curve). Comparable to FSRS retrievability, but used for word selection and difficulty, not only scheduling.
+* A new word starts at R = 0 with the lowest stability, so it is simply the most unproven word; no special case.
+* A word unseen for a long time decays toward low R and is treated like an unproven word, but its history gives it higher stability so it recovers faster (relearning). This also handles a user returning after a long break.
+* Word states are ranges of R (thresholds a, b tuned by playing):
+	* **unproven**: R < a. Presented only alongside words at least "learning", so the answer is clear from context.
+	* **learning**: a ≤ R < b.
+	* **fluent**: R ≥ b.
+* At most 1 unproven word (new or forgotten) per level, and only when every other target is at least "learning".
+* A level contains at most 5 distinct non-fluent words.
 * Lower weighted success → higher selection probability.
 * High repetitions and high weighted success → lower selection probability.
 * Initial difficulty depends on word length (shorter = easier). Tap latency then calibrates it.
@@ -120,4 +136,4 @@ Draft; exact rules TBD. Rules will be tuned by playing. Each rule will be compar
 ## Modes and settings
 * Gameplay interface (selectable in settings): falling words only, for now.
 * Content mode (selectable in settings): word, sentence, or phrasebook.
-* In sentence mode, all the words in the sentence will fall in correct order for the target language. (mixed with false targets)  Phrase success can therefore be partial, scored as number of successful word hits/total words in sentence.  TBD should we penalize wrong hits further in this formula?  We don't want to make a formula that can have a negative result if user is clicking randomly.
+* In sentence mode, all the words in the sentence will fall in correct order for the target language. (mixed with false targets)  Sentence success can therefore be partial: score = hits / (words in sentence + wrong taps). Always between 0 and 1, never negative; random tapping drives it toward 0.
