@@ -14,7 +14,7 @@ When we get to requirements analysis phase, requirements are in the docs/require
 - Each of `data/language/<language>/` and `data/graphics/` keeps an `INDEX.csv`, one row per file: `path,source_url,author,license,retrieved`. Rows for audio slices also carry `start_ms,end_ms`.
 - Never use a source whose terms restrict rehosting or redistribution.
 - Binary data is not committed during this phase (gitignored); only `INDEX.csv` files are. Hosting for built language packages is decided later.
-- Releases bundle all of a language's data into a single language file, with attributions generated from its `INDEX.csv`.
+- Releases ship a language pack per language plus a pair pack per language pair, with attributions generated from each language's `INDEX.csv`.
 
 ## Ground rules
 Propose each change and wait for my approval before editing; never widen permissions on your own; When finished, list each item as verified, blocked (why), or not attempted.

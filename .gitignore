@@ -47,3 +47,5 @@ docs/conversation.md
 data/**
 !data/**/
 !data/**/INDEX.csv
+
+/docs/notes/**

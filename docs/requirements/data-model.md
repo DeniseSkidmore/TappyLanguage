@@ -53,7 +53,7 @@ classDiagram
 ```
 - The pack also contains the audio files that `File` describes.
 - `text` need not be unique: several clips may share a text (different speakers, accents, or a word cut from several phrases).
-- `AudioClip.filename` links a clip to its file and attribution (proposed, instead of a numeric `fileId`).
+- `AudioClip.filename` links a clip to its file and attribution (no numeric `fileId`).
 
 ### 1b. Pair pack (one per language pair; plain JSON or XML)
 ```mermaid
@@ -102,18 +102,19 @@ classDiagram
 - `targetWords` and `letterCount` are derived, never stored.
 - Items with no clip in the prompt language are not playable (requirements).
 
-**Match key** (used to match text across files and to key saved data): Unicode NFC, case-folded, punctuation stripped, accents kept. Display always uses the original text. See conversation thread 14 for the case question.
+**Match key** (used to match text across files and to key saved data): Unicode NFC, case-folded, punctuation stripped, accents kept. Display uses the original text, or its ALL CAPS form (Greek caps drop accents; ς becomes Σ). Note: case folding also maps final ς to σ, which is fine for matching since both sides are folded.
 
 ## 3. Saved user data (on device)
 
 ### 3a. Skill
-One row per learning-language item, language pair and combination. Running values only; `predictedRecall()` and `state()` are computed (see [selection.md](selection.md)).
+One row per learning-language item, language pair, combination and target case. Running values only; `predictedRecall()` and `state()` are computed (see [selection.md](selection.md)).
 ```mermaid
 classDiagram
     class Skill {
         itemKey : String
         pair : String
         combination : Combination
+        targetCase : TargetCase
         unlocked : Boolean
         successAvg : Double
         latencyAvgMs : Double
@@ -131,6 +132,7 @@ classDiagram
 | Enum | Values |
 |---|---|
 | Combination | LEARNING_LEARNING, KNOWN_LEARNING, LEARNING_KNOWN |
+| TargetCase | AS_WRITTEN, ALL_CAPS (learning-language targets only; known-language targets use AS_WRITTEN) |
 | SkillState | UNPROVEN, LEARNING, FLUENT |
 | ContentMode | WORD, SENTENCE, PHRASEBOOK |
 | PlayOutcome | HIT, WRONG_TAP, TIMEOUT |

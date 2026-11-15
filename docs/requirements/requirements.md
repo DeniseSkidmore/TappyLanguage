@@ -107,7 +107,8 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 	* **fluent**: R at or above the fluent threshold.
 * Stability is a single value per skill.
 * **Pool**: the level number is the pool size. The pool holds the words with the highest R below the fluent threshold, so fluent words fall back in as R decays.
-* At most 1 unproven word (new or forgotten) in the pool.
+* At most 1 new word (no success yet) in the pool. A forgotten word is not "new"; its low R ranks it.
+* **Letter case**: learning-language targets appear both as written and in ALL CAPS (e.g. Greek signs), tracked as separate skills and mixed from level 1, so both forms are learned together while repeats are high.
 * New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
 * **Targets** are drawn at random from the pool (no back-to-back repeat) until their expected tap times add up to about 5 minutes. Small pools therefore repeat words more.
 * Distractors have higher R than the target; the weaker the target, the better known its distractors.
@@ -130,12 +131,13 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 ## Levels and difficulty
 * Level 1 has 1 target word played 10 times. It assumes no prior knowledge: with only the right answer on screen, the association is learned from context alone.
 * Once targets have prior success, the screen shows distractors as well as the target.
-* Levels are planned to last up to 5 minutes. Level 1-5 are one minute per level, then after that levels are capped at 5 minutes.  The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
-* Each word's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen. Speed is independent of the level number.
-* Number of words on screen at once: TBD.
+* Levels 1–4 last about 1 minute; from level 5 on, about 5 minutes. The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
+* Each target's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen; distractors on screen with it fall at the same speed. Speed is independent of the level number.
+* At most 4 words on screen at once, to start; may later depend on level and screen size.
+* At session start the level is lowered in proportion to how much the pool has been forgotten (see selection.md §9), so a returning player starts at a fitting level.
 * The level number goes up when the previous level's success rate is above 90%.
 * The pool keeps growing with the level until it holds every word and phrase in the language pack. At that point the level number stops increasing and the game shows "Max" in its place.
-* We may need some way to globally reduce difficulty when user has been away from the game too long and needs a reduced word set to build back up from.  This can be determined by a significantly lower level success rate than historical average.
+* Within a session, the level drops by 1 when a level's success rate is well below the historical average.
 * Between levels: a message of about 3 seconds listing words whose success rate improved, a starburst, then the next level starts.
 * The level number and running average level success rate is saved per game mode and restored on the next app launch.
 

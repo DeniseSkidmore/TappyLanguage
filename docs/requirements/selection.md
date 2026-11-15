@@ -22,14 +22,13 @@ A wrong tap also logs a `wrong_tap` play for the tapped word's skill, in the sam
 ## 2. Per-play values (derived from the log)
 ```
 play_score        = 1    if hit
-                    0.5  if timeout     (proposed)
-                    0    if wrong_tap
+                    0    if timeout or wrong_tap
 
 latency_sample_ms = latency_ms              if hit
                     1.1 × opportunity_ms    if timeout
                     none                    if wrong_tap   (latency unchanged)
 ```
-- A timeout costs less than a wrong tap, so many timeouts mostly slow the game down (through latency, §8) rather than changing word selection.
+- A timeout is a failure for recall, like a wrong tap. The two differ in latency (below) and stability (§5): a timeout also slows the word down.
 - A timeout's latency sample is longer than the time the word was on screen, so the word falls more slowly next time.
 
 ## 3. Saved running values (per skill)
@@ -90,32 +89,38 @@ Your questions:
 
 ## 7. Skill states
 ```
-fluent:    predicted_recall ≥ fluent_threshold         (0.85)
-unproven:  no success yet, or predicted_recall < unproven_threshold   (0.1, proposed)
+fluent:    predicted_recall ≥ fluent_threshold   (0.85)
+unproven:  no success yet
 learning:  everything else
 ```
-States are used only for yes/no rules: the pool cutoff and the one-unproven rule (§8), unlocking the next combination (a word's next combination unlocks when the previous one reaches learning), and phrase eligibility (every word learning or fluent). The dynamic boundary from round 1 is dropped; ranking does its job.
+No recall threshold separates unproven from learning: a forgotten word with low recall is "learning", and ranking (§8) handles it. The remaining yes/no rules:
+- pool cutoff (fluent words stay out of the pool, §8);
+- one new (unproven) word per pool;
+- the next combination unlocks after the previous one's first success;
+- a phrase is eligible once each of its words has a success (words with no translation of their own don't count).
 
 ## 8. Building a level
 Your simplification: the level number is the pool size, targets are drawn at random from the pool, and a level lasts about 5 minutes.
 
 **Pool**
 ```
-word_recall = lowest predicted_recall among the word's unlocked combinations   (proposed)
+word_recall = lowest predicted_recall among the word's unlocked skills (combination × case)
 pool_size   = level_number
 pool        = the pool_size words with the highest word_recall below fluent_threshold
 ```
 - At most 1 unproven word in the pool. New words are picked by `new_word_score = (1 − initial_difficulty) + 0.2 × in_selected_phrasebook + 0.2 × letter_overlap` (letter_overlap = share of the word's letters already in learning or fluent words). Short, common, phrasebook words with familiar letters come first.
-- If too few non-fluent words exist, fill the rest of the pool with the fluent words of lowest recall (early review) (proposed).
-- Words fall back into the pool on their own as recall decays.
+- Fluent words stay out of the pool and serve only as distractors until their recall decays below `fluent_threshold`; then they fall back in on their own. If fewer non-fluent words exist than `pool_size`, the pool is simply smaller.
+- After a break, many fluent words decay at once. The session-start level (§9) lowers the level up front, so the player doesn't first sit through one very hard level.
 
 **Targets**
 1. Pick a pool word at random (uniform), but not the previous target unless the pool has one word.
-2. Pick its combination with weight `(1 − predicted_recall) + 0.05` over unlocked combinations, so the weakest combination is played most.
+2. Pick its skill (combination × case) with weight `(1 − predicted_recall) + 0.05` over unlocked skills, so the weakest is played most.
 3. Add that skill's `latency_avg_ms` to `planned_time_ms`.
-4. Repeat until `planned_time_ms` reaches `level_duration_ms`: 60,000 (1 minute) for levels 1–5, then 300,000 (5 minutes) (requirements).
+4. Repeat until `planned_time_ms` reaches `level_duration_ms`: 60,000 (1 minute) for levels 1–4, then 300,000 (5 minutes) from level 5.
 
-Check, level 1: pool = 1 new word. With a 30 s starting latency, a 1-minute level holds only 2 targets, not your "one word ten times". See conversation thread 17.
+Check, level 1: pool = 1 new word. With a 30 s starting latency, a 1-minute level holds only 2 targets, not "one word ten times". Open: conversation thread 17.
+
+**Letter case** (for learning-language target text): each target is shown either as written (lowercase words, sentence case for phrases) or in ALL CAPS. Case is part of the skill, so both forms are tracked separately and both are unlocked from the start; level 1 shows one short word in both forms close together.
 
 `pool_size` grows with the level until the pool holds every item in the language pack; the level then shows "Max".
 
@@ -123,7 +128,7 @@ Check, level 1: pool = 1 new word. With a 30 s starting latency, a 1-minute leve
 ```
 fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)   (clamp proposed)
 ```
-`target_travel_share` = 0.5: the average tap lands halfway down the screen. Each word falls at the speed of its own skill (proposed). Tracking latency spread to aim for exactly 90% success is deferred; halfway should do for now.
+`target_travel_share` = 0.5: the average tap lands halfway down the screen. Distractors fall at the same speed as the target they appear with. At most 4 words on screen at once (tune later, maybe by level and screen size). Tracking latency spread to aim for exactly 90% success is deferred; halfway should do for now.
 
 **Distractors** (words on screen that are not the target)
 ```
@@ -138,9 +143,14 @@ A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5
 level_success_rate = hits / plays
 level_success_avg  = 0.7 × level_success_avg + 0.3 × level_success_rate
 level_number + 1   if level_success_rate > 0.9
-level_number − 1   if level_success_rate < level_success_avg − 0.2   (minimum 1; e.g. after a long break)
+level_number − 1   if level_success_rate < level_success_avg − 0.2   (minimum 1)
 ```
-- The level number replaces the separate difficulty setting (proposed): level sets pool size, latency sets speed.
+At the start of each session:
+```
+session_start_level = max(1, round(saved_level × average predicted_recall of the pool saved_level would pick))
+```
+A daily player keeps their level; after a long break the level drops in proportion to what was forgotten, then climbs back by the +1 rule.
+- The level number replaces the separate difficulty setting: level sets pool size, latency sets speed.
 - Sentence mode: `phrase_score = hits / (words in phrase + wrong taps)`.
 
 ## 10. Graphs and session length
