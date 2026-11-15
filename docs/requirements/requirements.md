@@ -49,15 +49,17 @@ Phrasebooks:
 * Claude drafts each phrasebook from items that have recordings, with Greek checked against Wiktionary.
 * The user approves the English for each phrasebook before it is used.
 
-Language files (proposal, see [data-model.md](data-model.md)): one pack per language (words, phrases, audio, attribution) plus one pair pack per language pair (translations, phrasebooks), so English audio is shared rather than duplicated.
+Language files (see [data-model.md](data-model.md)): one pack per language (words, phrases, audio, attribution) plus one pair pack per language pair (translations, phrasebooks), so English audio is shared rather than duplicated, and a known language other than English can be added later with its own pair packs.
 
 Later (not now): an in-app tool for editing datasets, including recording audio.
 
 ## Items
-* **Words** are the targets (what the user taps). Words or phrases can be prompts.
-* **Phrases** (= sentences) are made of words. They keep the same play data as words.
+Detail in [data-model.md](data-model.md), "Items".
+* **Translations** (a text in each language) are the learning unit. A word is a one-word translation; a phrase (= sentence) is a longer one. Both keep the same play data.
+* **Targets** are the words of the target text, split on spaces. Prompts are never split.
 * **Letters** are parts of words and are not tracked individually. The selection engine uses them only to prefer new words that share letters with words already learning or fluent.
-* A **phrasebook** is studied in two steps: first the words in its phrases, then each phrase once all its words are learning or fluent.
+* A **phrasebook** is studied in two steps: first the words in its phrases, then each phrase once all its words are learning or fluent. A word with no translation of its own doesn't block its phrase; as a target it gets more fluent distractors.
+* Text is the key across files and in saved data; no numeric ids. Duplicate texts (homographs) are picked at random for now.
 
 ## Prompt / target combinations
 The prompt is the audio played; the target is the text tapped.
@@ -82,12 +84,14 @@ When a word is selected, its combination is chosen with higher probability for t
 Running values only; no long-term play log.
 * During a level the app keeps that level's plays; they are folded into the running values while the between-levels screen shows, then discarded.
 * Per item (word or phrase) **and per prompt/target combination** (separate values; each combination is a different skill), the app stores:
-	* repetitions
-	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO)
-	* tap latency: weighted average, recent plays weighted more; calibrates difficulty
+	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO). A wrong tap counts as a full failure, a timeout as a partial one.
+	* tap latency: weighted average, recent plays weighted more; sets the word's fall speed. Wrong taps don't change it; a timeout counts as 1.1 × the time the word was on screen.
+	* difficulty: seeded from word length and frequency, then moved by play outcomes; used for word selection, not speed
+	* stability
 	* time last success: drives forgetting (predicted recall decays from the last proven recall)
-	* time last played: weighted lightly in selection, only to avoid boredom from back-to-back repeats
-* A word whose last play failed stays in rotation; "last played" must never push it out.
+	* time last played
+* Repetitions are not stored; their effect shows in success, latency and stability.
+* A word whose last play failed stays in rotation.
 * How strongly recent results outweigh history (the weighting factor): TBD whether it auto-adapts per user (like FSRS-6's trainable forgetting curve) or is a setting.
 * Current level number per game mode, kept across app launches.
 
@@ -97,25 +101,17 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * Each word-combination has a **predicted recall** R (0–1), computed from weighted success and time since last success (forgetting curve). Comparable to FSRS retrievability, but used for word selection and difficulty, not only scheduling.
 * A new word starts at R = 0 with the lowest stability, so it is simply the most unproven word; no special case.
 * A word unseen for a long time decays toward low R and is treated like an unproven word, but its history gives it higher stability so it recovers faster (relearning). This also handles a user returning after a long break.
-* Word states are ranges of R:
-	* **unproven**: R < a. Presented only alongside words at least "learning", so the answer is clear from context.
-	* **learning**: a ≤ R < b.
-	* **fluent**: R ≥ b.
-* The fluent threshold b is fixed. The unproven/learning boundary a is **dynamic**: it moves so the learning pool never holds too many words at once.
+* Word states are fixed ranges of R, used only for yes/no rules (pool cutoff, one-unproven rule, combination unlock, phrase eligibility):
+	* **unproven**: no success yet, or very low R. Presented only alongside better-known words, so the answer is clear from context.
+	* **learning**: between.
+	* **fluent**: R at or above the fluent threshold.
 * Stability is a single value per skill.
-* New words are preferred when they share letters with words already learning or fluent.
+* **Pool**: the level number is the pool size. The pool holds the words with the highest R below the fluent threshold, so fluent words fall back in as R decays.
+* At most 1 unproven word (new or forgotten) in the pool.
+* New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
+* **Targets** are drawn at random from the pool (no back-to-back repeat) until their expected tap times add up to about 5 minutes. Small pools therefore repeat words more.
+* Distractors have higher R than the target; the weaker the target, the better known its distractors.
 * A phrase is eligible only when all its words are learning or fluent.
-* At most 1 unproven word (new or forgotten) per level, and only when every other target is at least "learning".
-* A level contains at most 5 distinct non-fluent words.
-* Lower weighted success → higher selection probability.
-* High repetitions and high weighted success → lower selection probability.
-* Initial difficulty depends on word length (shorter = easier). Tap latency then calibrates it.
-* Between otherwise equal words, selection probability is higher for:
-	* words more frequent in the language
-	* words in the currently selected phrasebook
-	* shorter words
-* The lower a word's repetitions or success, the more times it repeats within a level.
-* The level number is an input to target selection (see Levels).
 
 ## Game play
 * The game requests play items from the selection engine.
@@ -127,18 +123,18 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * The target reaching the bottom untapped is a failure: red starburst where it left the screen.
 * A non-target word reaching the bottom is ignored (no history update).
 * After a success, or a failure from the target reaching the bottom, a new visible play item becomes the target and its audio plays.
+* After failure due to word falling off edge of screen, flash the correct answer in red for 3 seconds before next prompt.
+* After failure due to incorrect target selection, flash the distractor red and continue main gain loop waiting for success or failure due to word falling off edge of screen.
 * Each level has a pause button that stops play for this session.
 
 ## Levels and difficulty
 * Level 1 has 1 target word played 10 times. It assumes no prior knowledge: with only the right answer on screen, the association is learned from context alone.
-* A new word is added each time one breaks "unproven" threshold. Once every target in a level has prior success, the screen shows more options than correct targets.
-* Each following level adds target words and reduces repeats per word. Exact formula TBD; it also has to respect the non-fluent cap.
-* Difficulty settings control:
-	* number of words per level
-	* number of distinct play items per level (items repeat to fill the level on easier difficulty)
-	* number of words on screen at once (more words is more difficult)
-	* speed the words move (faster is more difficult)
-* Difficulty increases when the previous level's success rate is above 90%.
+* Once targets have prior success, the screen shows distractors as well as the target.
+* Levels are planned to last up to 5 minutes. Level 1-5 are one minute per level, then after that levels are capped at 5 minutes.  The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
+* Each word's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen. Speed is independent of the level number.
+* Number of words on screen at once: TBD.
+* The level number goes up when the previous level's success rate is above 90%.
+* The pool keeps growing with the level until it holds every word and phrase in the language pack. At that point the level number stops increasing and the game shows "Max" in its place.
 * We may need some way to globally reduce difficulty when user has been away from the game too long and needs a reduced word set to build back up from.  This can be determined by a significantly lower level success rate than historical average.
 * Between levels: a message of about 3 seconds listing words whose success rate improved, a starburst, then the next level starts.
 * The level number and running average level success rate is saved per game mode and restored on the next app launch.

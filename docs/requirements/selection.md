@@ -1,115 +1,182 @@
-# Selection equations (draft)
+# Selection equations (draft, round 2)
 
-How the selection engine scores skills and builds a level. All constants are starting guesses, to be tuned by playing. Each equation notes how it compares with published schemes (references in `docs/open-items.md`).
+How the selection engine turns a level's plays into saved values, and saved values into the next level. Sections run in data-flow order: play log → per-play values → saved running values → recall → level building. Every variable is defined before it is used. All constants are starting guesses to tune by playing. **(proposed)** marks a choice Claude made that you have not reviewed yet; the rest follows your comments.
 
-Notation: one **skill** = one item (word or phrase) × language pair × combination (see [data-model.md](data-model.md)). `t` = time now. Times in days.
+A **skill** is one item (word or phrase) × language pair × combination (see [data-model.md](data-model.md)). `now` is the current time. Durations are in days unless they end in `_ms`.
 
-## 1. Running values (updated between levels)
-For each play of a skill, with outcome x = 1 (success) or 0 (failure):
+Compared schemes (references in `docs/open-items.md`): FSRS, half-life regression (HLR, Duolingo), SM-2, Leitner.
 
-| Value                              | Update                    | Start |
-| ---------------------------------- | ------------------------- | ----- |
-| success average s                  | s ← (1 − α)·s + α·x       | 0     |
-| latency average ℓ (successes only) | ℓ ← (1 − α)·ℓ + α·latency | ℓ_max |
-| repetitions n                      | n ← n + 1                 | 0     |
-| last played                        | t                         | none  |
-| last success                       | t if x = 1                | none  |
+## 1. Level play log (memory only)
+One record per play:
 
-α = recency weight (0.2 to start). Open question: fixed setting or auto-adapted per user.
-- Compares with: half-life regression uses counts of correct/wrong; this weighted average is the same idea with recent plays counting more. Replaces the last-4 FIFO.
+| Field | Meaning |
+|---|---|
+| `target_skill` | the skill whose prompt played |
+| `outcome` | `hit`, `wrong_tap` or `timeout` |
+| `latency_ms` | prompt to tap; hits only |
+| `opportunity_ms` | prompt until the target left the screen (or would have) |
+| `wrong_tap_word` | word tapped by mistake, if any |
 
-> Recentcy weight might be relative to overall recentcy weight?  If the player has not played in some time all the words would be non-recent.  If they've been playing for 24 hours straight then there's a high average recency.  TBD
-> Please use variable names instead of single letters in formulas.  I'm a programmer not a mathematician.
-> Switch the order of the file so that we start with the level play log, and derive values in order before getting to the running values saved.  Then take the data from running values and compute word selection.  Define each variable before it's introduced in a formula.
-> Repetitions isn't used in any downstream calculations?  Anything we could derive from this is implied by the success/latency and last played?  (More repetitions over time should increase success, and decrease latency, and if it doesn't then we don't want to correct for having had lots of reps.)  If you agree, remove repetitions from the sored data.
+A wrong tap also logs a `wrong_tap` play for the tapped word's skill, in the same combination (requirements: a failure for both words).
 
-## 2. Difficulty
-Ease from latency, 0 (slow) to 1 (fast):
-  e = clamp((ℓ_max − ℓ) / (ℓ_max − ℓ_min), 0, 1)
+## 2. Per-play values (derived from the log)
+```
+play_score        = 1    if hit
+                    0.5  if timeout     (proposed)
+                    0    if wrong_tap
 
-> We have been talking about difficulty as one variable that  controls multiple settings, but if we're measuring latency then speed can be an independent factor.  Level speed should be tuned to the latency of the expected words.  Latency is a recentcy weighted average, so should predict the user's ability to gain a success before the word reaches the bottom of the screen.  It rolls both the user's personal reaction time and their word fluency together.  We'd need standard deviation as well to accurately predict 90% success rate, but we might do well enough with the average being 50% of screen travel?  Users with a low standard deviation will hit most of the targets in the middle, I think that's fine.  A failure due to tapping the wrong word should not affect latency.  A failure due to the word falling off screen should count towards latency as 1.1 times opportunity time (time between prompt and word falling off the edge), thereby driving up latency and slowing down the word on next attempt.  
-> With this formula, initial value for latency not start at mathematical max, or the first level would be nearly frozen in time.  Start at 30 seconds.
+latency_sample_ms = latency_ms              if hit
+                    1.1 × opportunity_ms    if timeout
+                    none                    if wrong_tap   (latency unchanged)
+```
+- A timeout costs less than a wrong tap, so many timeouts mostly slow the game down (through latency, §8) rather than changing word selection.
+- A timeout's latency sample is longer than the time the word was on screen, so the word falls more slowly next time.
 
-Difficulty, 0 (easy) to 1 (hard):
-  D = clamp(D_len · (1 − e·k_e), 0, 1),  D_len = clamp(length / L_ref, D_min, 1)
+## 3. Saved running values (per skill)
+Updated between levels, one play at a time in play order. `recency_weight` = 0.2: how much the newest play counts against all older plays combined.
 
-> please use longer variable names so this is human readable.  if D_len is difficulty due to length, do you mean word_length?  Where word_length is some sort of score of letters/max_letters_per_word?  I think we need separate formulas for initial word difficulty (based on word length and language frequency), and running difficulty (recency biased modification based on success/failure)
-> Language Frequency doesn't actually affect difficulty for true naive learners, but a) is does affect difficulty for those who have tried other methods, and b) it allows us to easily incorporate language frequency into initial word selection.
+| Value | Update per play | Start |
+|---|---|---|
+| `success_avg` | `(1 − recency_weight) × success_avg + recency_weight × play_score` | 0 |
+| `latency_avg_ms` | same form with `latency_sample_ms`; skipped when there is no sample | 30,000 |
+| `difficulty` | same form with `1 − play_score` | `initial_difficulty` (§4) |
+| `stability_days` | §5 | 0.1 |
+| `last_played` | `now` | none |
+| `last_success` | `now` if hit | none |
 
-Start: e = 0, so D = D_len (longer words start harder). Constants: L_ref = 8 letters, D_min = 0.2, k_e = 0.6, ℓ_min = 0.6 s, ℓ_max = item fall time.
-- Compares with: FSRS sets initial difficulty from the first rating, then moves it with each rating. We set it from word length, then let tap speed calibrate it. FSRS has no latency input; we use latency in place of its Hard/Good/Easy ratings.
+- **Repetitions removed**, as you suggested: more practice shows up as higher `success_avg`, lower `latency_avg_ms` and higher `stability_days`, and nothing downstream needs the raw count.
+- **Recency weight and long breaks:** the weight is per play, not per hour. A long break doesn't make every word "non-recent"; time away acts only through the forgetting curve (§6). A marathon player simply gets more plays, each weighted the same. Whether `recency_weight` auto-adapts per user stays open.
+- Compare: HLR uses counts of correct and wrong answers; this is the same idea with recent plays counting more. FSRS has no running average; it stores difficulty and stability only.
 
-## 3. Stability (days)
-On success:  S ← S · (1 + g · (1 − D) · (1 − R))
-On failure:  S ← max(S_min, S · m_fail)
-Start: S = S_0.
+## 4. Initial word difficulty (0 easy to 1 hard)
+Set once, when a skill first enters play:
+```
+length_score       = min(letter_count / long_word_letters, 1)
+rarity_score       = frequency_rank / vocabulary_size        (0 = most common word)
+initial_difficulty = clamp(length_weight × length_score + rarity_weight × rarity_score, 0.1, 1)
+```
+Constants: `long_word_letters` = 10, `length_weight` = 0.7, `rarity_weight` = 0.3.
 
-Constants: S_0 = 0.1 day, S_min = 0.05 day, g = 3, m_fail = 0.5.
-- Growth is largest when recall was hard (low R) and the item is easy (low D). During massed practice R is near 1, so ten correct taps in a row add little stability. This handles same-day repeats without special rules.
-> this may conflict with my earlier breaking difficulty into two components of latency and success rate.  We do need to have separate information concerning word selection and game play.  Propose ideas.
-- A failure halves stability; it never resets to zero, so a previously known word relearns faster (no "ease hell").
-- > Penalize a failure by wrong tap more than by timeout.  Many timeouts per game should just slow the game down, not alter word selection as much.
-- Compares with: a simplified FSRS stability update (FSRS also multiplies by a factor that grows with (1 − R) and shrinks with D; on a lapse FSRS uses a separate post-lapse formula). FSRS-7 splits S into fast and slow; we keep one value.
+After that, `difficulty` is the recency-weighted failure rate seeded with `initial_difficulty` (§3).
+- Rarity barely matters to a true beginner, but it helps learners who have studied before, and it puts word frequency into new-word picking for free (§8).
+- **Speed is separate**: difficulty is used only for stability (§5) and for picking new words (§8). Fall speed comes from latency alone (§8). This keeps gameplay tuning and word selection apart, as you asked.
+- Compare: FSRS sets initial difficulty from the first rating, then moves it with each rating. We seed from length and rarity, then move it with play outcomes.
 
-## 4. Predicted recall R (0 to 1)
-  R = s · (1 + F · Δt / S)^C,  Δt = t − last success
+## 5. Stability (days)
+`recall_before` = predicted recall (§6) just before the play.
+```
+hit:        stability_days = stability_days × (1 + growth_rate × (1 − difficulty) × (1 − recall_before))
+wrong_tap:  stability_days = max(min_stability, stability_days × wrong_tap_factor)
+timeout:    stability_days = max(min_stability, stability_days × timeout_factor)
+```
+Constants: `growth_rate` = 3, `min_stability` = 0.05 day, `wrong_tap_factor` = 0.5, `timeout_factor` = 0.8 (proposed).
+- Growth is largest when recall was hard (low `recall_before`) and the word is easy (low `difficulty`). In massed practice recall is near 1, so ten hits in a row add little stability; spacing does the work.
+- Failures shrink stability but never reset it, so a word known before relearns faster (no "ease hell").
+- Compare: simplified FSRS stability update (FSRS also grows with 1 − R and shrinks with D, and uses a separate post-lapse formula). FSRS-7 splits stability into fast and slow; we keep one value.
 
-F = 19/81, C = −0.5 (the FSRS-4.5 forgetting curve: recall reaches 0.9 when Δt = S). A skill with no success yet has R = 0.
-- The extra factor s folds in the weighted success, so a word with shaky recent results reads as less known even right after a success.
-- > Yes good, given our high repeat opportunities count, a success can breed more success and fun game play, but enough success will move the word to the fluent category and reduce frequency of selection to keep it from being boring and repetitive.
-- > Is this the same thing as our fluency percentage that we use to categorize unproven-learning-fluent?  I think it's good for fluency category to decay over time and to bring back previously fluent words for review just as in normal spaced repetition.  The thing I'm getting at with the fluency categories is that we want to mostly drill words with some but not a lot of recall, and only introduce words with no or very low recall among high recall words so it can be chosen by process of elimination until it enters a moderate recall level.
- > If predicted recall falls over time between plays, and we use hard thresholds, then all the words will be lumped into the same category.  Further thoughts needed on word selection phase derived from predicted recall.
- > We expect previously known words to increase success rate faster than true learning words even after an extended gap.  Should we account for this or just let it organically happen that the success rate will climb faster and bump the word back into the fluent category faster?
-- Compares with: FSRS retrievability (same curve shape); half-life regression uses p = 2^(−Δt/h). Leitner boxes are a coarse step version of this.
+## 6. Predicted recall (0 to 1)
+```
+days_since_success = now − last_success
+forgetting         = (1 + (19/81) × days_since_success / stability_days) ^ (−0.5)
+predicted_recall   = success_avg × forgetting          (0 if no success yet)
+```
+`forgetting` is the FSRS-4.5 curve: it reaches 0.9 when `days_since_success` = `stability_days`.
 
-## 5. Skill states and the dynamic boundary
-  fluent:    R ≥ b
-  learning:  a ≤ R < b
-  unproven:  R < a
+Your questions:
+- **Is this the fluency value used for categories?** Yes, one value. It decays over time, so fluent words come back for review, as in normal spaced repetition.
+- **Previously known words relearning faster:** happens on its own. Their `stability_days` stays high (failures shrink it, never reset it), so after a few hits their recall holds up much longer than a new word's. No extra rule proposed.
+- **Hard thresholds lumping decayed words together:** solved by ranking instead of bands (§8). Thresholds are now used only for yes/no rules (§7).
+- Compare: FSRS retrievability uses the same curve; HLR uses `2^(−days/half_life)`; Leitner boxes are a coarse step version.
 
-b = 0.85 (fixed). a is dynamic, so the learning pool stays small:
-  a = max(a_min, R of the N_pool-th highest non-fluent skill)
+## 7. Skill states
+```
+fluent:    predicted_recall ≥ fluent_threshold         (0.85)
+unproven:  no success yet, or predicted_recall < unproven_threshold   (0.1, proposed)
+learning:  everything else
+```
+States are used only for yes/no rules: the pool cutoff and the one-unproven rule (§8), unlocking the next combination (a word's next combination unlocks when the previous one reaches learning), and phrase eligibility (every word learning or fluent). The dynamic boundary from round 1 is dropped; ranking does its job.
 
-Constants: a_min = 0.1, N_pool = 15. Skills just below the cut wait as unproven until the pool has room.
-- Compares with: Anki caps new cards per day; this caps the number of skills in progress at once instead.
+## 8. Building a level
+Your simplification: the level number is the pool size, targets are drawn at random from the pool, and a level lasts about 5 minutes.
 
-Is the pool the number of words to be selected or the size of the learning category?  We have levels not days, we might pick a smaller number of words for a level than we do for the day.  The decay rate means that R will decrease slightly even between levels, which will refigure our pools.  In an absolute best case scenario, words would move from learning to fluent during a level, and we'd have new learning words in the next level.  In the worst case most of the words remain in learning, and some descend to unproven.  Trying to balance maintaining interest by not over-using the same words, and not being too difficult by not having enough of the same words.
+**Pool**
+```
+word_recall = lowest predicted_recall among the word's unlocked combinations   (proposed)
+pool_size   = level_number
+pool        = the pool_size words with the highest word_recall below fluent_threshold
+```
+- At most 1 unproven word in the pool. New words are picked by `new_word_score = (1 − initial_difficulty) + 0.2 × in_selected_phrasebook + 0.2 × letter_overlap` (letter_overlap = share of the word's letters already in learning or fluent words). Short, common, phrasebook words with familiar letters come first.
+- If too few non-fluent words exist, fill the rest of the pool with the fluent words of lowest recall (early review) (proposed).
+- Words fall back into the pool on their own as recall decays.
 
-## 6. Selection weight
-For each eligible skill:
-  W = need · bonus · freshness
+**Targets**
+1. Pick a pool word at random (uniform), but not the previous target unless the pool has one word.
+2. Pick its combination with weight `(1 − predicted_recall) + 0.05` over unlocked combinations, so the weakest combination is played most.
+3. Add that skill's `latency_avg_ms` to `planned_time_ms`.
+4. Repeat until `planned_time_ms` reaches `level_duration_ms`: 60,000 (1 minute) for levels 1–5, then 300,000 (5 minutes) (requirements).
 
-- need = 1 − R
-- bonus = 1 + λ_f·freq + λ_p·inPhrasebook + λ_s·shortness + λ_o·overlap (tie-breakers; λ around 0.1)
-	- freq = 1 − rank / rank_max
-	- shortness = 1 − D_len
-	- overlap = share of the word's letters that appear in learning or fluent words
-- freshness = 1 − μ · exp(−(t − last played) / τ), with μ = 0.3, τ = 10 minutes. A light penalty for a skill just played; never removes a failed skill from rotation.
+Check, level 1: pool = 1 new word. With a 30 s starting latency, a 1-minute level holds only 2 targets, not your "one word ten times". See conversation thread 17.
 
-> An advertised desirable frequency for leaning is "15 minutes a day".  An advertised desirable duration for games is a few hours a day.  Unclear what this means for an ideal τ.  If a level is around 5 minutes, and people play 3-40 levels per session, how would that compare to the more established repetition patterns?  Draw me some 2D graphs for the functions with decay factors so I can more easily understand it.
+`pool_size` grows with the level until the pool holds every item in the language pack; the level then shows "Max".
 
-Compares with: these are your original tie-breakers made continuous. Leitner, SM-2 and FSRS pick items by due date only; this weighting is our own.
+**Fall speed** (from latency only)
+```
+fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)   (clamp proposed)
+```
+`target_travel_share` = 0.5: the average tap lands halfway down the screen. Each word falls at the speed of its own skill (proposed). Tracking latency spread to aim for exactly 90% success is deferred; halfway should do for now.
 
-> We definitely want continuous functions and sliding boundaries rather than due dates to accommodate different play intervals and durations.  The player decides how much they study and how long, we can only control what they study in the next level.
+**Distractors** (words on screen that are not the target)
+```
+distractor_min_recall = target_recall + (1 − target_recall) × 0.5
+```
+A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5; target 0.8 → ≥ 0.9). Level 1 has none. If none qualify, show copies of the target instead (tapping any copy is a hit).
 
-## 7. Building a level
-Plays per level P comes from difficulty (P = 10 at the start).
-1. Candidate unproven skill: at most 1 per level, and only if every other target is at least learning. New words are picked by W (favoring frequent, short, high letter overlap, in the selected phrasebook).
-2. Fill target slots with learning skills by W, up to 5 non-fluent; then fluent skills.
-	> Up to 10 learning, only one Unproven, the rest fluent for targets.  Distractors on screen at the same time should have higher recall than the target word, and may include more fluent words.
-3. Plays per target: P_i = round(P · W_i / ΣW).
-	Maybe we just want to decrease chances of a re-pick over time and not set specific plays per target per level.  Increase the amount of words to pick targets from over time.  So at level 1 we're only considering the top word and therefore it gets picked for every target.  But by level 10 there's 10 words to pick from so we end up re-picking some but not all are picked.
-4. Distractors: words with higher R than the target, only once every target has prior success.  When there are very few fluent words, use duplicate targets and also count as successes in place of distractors.
-5. Combination for each play of a word: P(c) ∝ (1 − R_c) + ε over unlocked combinations (ε = 0.05). The next combination unlocks when the previous one reaches learning.
-6. Phrases: eligible only when every word in the phrase is learning or fluent (in the phrase's combination).
+**Phrases:** eligible only when every word in the phrase is learning or fluent in the phrase's combination.
 
-Check, level 1: one new skill (R = 0, need = 1) gets all 10 plays, with no distractors.
+## 9. Level result
+```
+level_success_rate = hits / plays
+level_success_avg  = 0.7 × level_success_avg + 0.3 × level_success_rate
+level_number + 1   if level_success_rate > 0.9
+level_number − 1   if level_success_rate < level_success_avg − 0.2   (minimum 1; e.g. after a long break)
+```
+- The level number replaces the separate difficulty setting (proposed): level sets pool size, latency sets speed.
+- Sentence mode: `phrase_score = hits / (words in phrase + wrong taps)`.
 
-> We need to consider choosing targets and false targets for each level.  The lower the recall probability of a target the higher the recall probability of the false targets on screen should be.  As mentioned level 1 has no candidates for higher recall probability, so we would just make all the targets true targets with no false targets.
+## 10. Graphs and session length
+Mermaid line charts (render in GitHub and Obsidian). Series are listed in each caption, top line first.
 
-## 8. Level result and difficulty
-- Level success rate = successes / plays.
-- levelSuccessAvg ← (1 − α_L) · levelSuccessAvg + α_L · rate, α_L = 0.3.
-- Difficulty + 1 if rate > 0.9.
-- Difficulty − 1 if rate < levelSuccessAvg − 0.2 (e.g. after a long break).
-- Sentence mode: phrase score = hits / (words + wrong taps).
+**A. Forgetting curve over two weeks**, for stability 7 days, 1 day, 0.1 day (new word). y = `forgetting`.
+```mermaid
+xychart-beta
+    title "Forgetting by days since last success"
+    x-axis "days" [0, 1, 2, 3, 5, 7, 10, 14]
+    y-axis "forgetting" 0 --> 1
+    line [1, 0.984, 0.968, 0.953, 0.925, 0.900, 0.866, 0.825]
+    line [1, 0.900, 0.825, 0.766, 0.678, 0.615, 0.547, 0.483]
+    line [1, 0.547, 0.419, 0.353, 0.280, 0.240, 0.202, 0.172]
+```
+
+**B. New word within one day** (stability 0.1 day = 2.4 hours).
+```mermaid
+xychart-beta
+    title "New word: forgetting by hours since last success"
+    x-axis "hours" [0, 0.5, 1, 2, 4, 8]
+    y-axis "forgetting" 0 --> 1
+    line [1, 0.976, 0.954, 0.915, 0.848, 0.749]
+```
+
+**C. success_avg after consecutive hits** (recency_weight 0.2, starting from 0). It takes about 9 hits in a row to pass the 0.85 fluent threshold.
+```mermaid
+xychart-beta
+    title "success_avg after n hits in a row"
+    x-axis "hits" [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    y-axis "success_avg" 0 --> 1
+    line [0.200, 0.360, 0.488, 0.590, 0.672, 0.738, 0.790, 0.832, 0.866, 0.893]
+```
+
+**Session length (15 minutes a day vs hours of play):**
+- Forgetting depends on clock time since the last success, not on session count or length, so 3 levels a day and 40 levels a day use the same curves.
+- Session length changes how many plays each word gets. A long session pushes `success_avg` up quickly (graph C) but adds little stability (§5), because recall stays near 1 during massed play. Stability grows when the player comes back after a gap and still hits.
+- Established schedules (Anki, FSRS) aim to show an item again when recall drops to about 0.9: for a new word that is about 2.4 hours (graph B), then days. Our pool does something similar without due dates: a word leaves the pool when fluent and comes back when its recall decays below 0.85.
+- The round 1 "freshness" penalty (and its τ) is dropped: uniform random picks with no back-to-back repeats do the same job more simply.
