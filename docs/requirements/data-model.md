@@ -146,6 +146,7 @@ classDiagram
         contentMode : ContentMode
         levelNumber : Int
         levelSuccessAvg : Double
+        lastRecallAvg : Double
     }
     class Settings {
         activePair : String

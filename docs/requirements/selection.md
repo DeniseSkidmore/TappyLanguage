@@ -4,7 +4,7 @@ How the selection engine turns a level's plays into saved values, and saved valu
 
 A **skill** is one item (word or phrase) × language pair × combination (see [data-model.md](data-model.md)). `now` is the current time. Durations are in days unless they end in `_ms`.
 
-Compared schemes (references in `docs/open-items.md`): FSRS, half-life regression (HLR, Duolingo), SM-2, Leitner.
+Compared schemes (references in `docs/open-items.md`): FSRS, half-life regression (HLR, Duolingo), SM-2, Leitner.  Algorithms aimed to accommodate either rapid learning long session game play or short daily review play.  It will be up to the player to pick a play time necessary to maintain their desired fluency.  Decay rate will automatically cause daily review play to cover different words as long as the player succeeds at review.  Level demotion will allow narrowing the learning pool when player stops succeeding, with level indicating to the user the learning progress.
 
 ## 1. Level play log (memory only)
 One record per play:
@@ -18,6 +18,10 @@ One record per play:
 | `wrong_tap_word` | word tapped by mistake, if any |
 
 A wrong tap also logs a `wrong_tap` play for the tapped word's skill, in the same combination (requirements: a failure for both words).
+
+>we need to explore wrong_tap more.  There could be multiple wrong taps and then a hit or timeout.  play_score should be if hit 1/number of taps, and if miss 0?  latency_sample_ms will never be none, the target will later be hit or timeout.  wrong_tap_word can be a list of distractors tapped.
+
+> In the long run we want this in memory only, in early drafts it may be useful to save these temporarily for retrospective analysis.
 
 ## 2. Per-play values (derived from the log)
 ```
@@ -37,7 +41,7 @@ Updated between levels, one play at a time in play order. `recency_weight` = 0.2
 | Value | Update per play | Start |
 |---|---|---|
 | `success_avg` | `(1 − recency_weight) × success_avg + recency_weight × play_score` | 0 |
-| `latency_avg_ms` | same form with `latency_sample_ms`; skipped when there is no sample | 30,000 |
+| `latency_avg_ms` | same form with `latency_sample_ms`; skipped when there is no sample | 10,000 |
 | `difficulty` | same form with `1 − play_score` | `initial_difficulty` (§4) |
 | `stability_days` | §5 | 0.1 |
 | `last_played` | `now` | none |
@@ -68,10 +72,12 @@ hit:        stability_days = stability_days × (1 + growth_rate × (1 − diffic
 wrong_tap:  stability_days = max(min_stability, stability_days × wrong_tap_factor)
 timeout:    stability_days = max(min_stability, stability_days × timeout_factor)
 ```
-Constants: `growth_rate` = 3, `min_stability` = 0.05 day, `wrong_tap_factor` = 0.5, `timeout_factor` = 0.8 (proposed).
+Constants: `growth_rate` = 3, `min_stability` = 0.05 day, `wrong_tap_factor` = 0.5, `timeout_factor` = 0.8.
+- **TBD:** whether a timeout should shrink stability less than a wrong tap (both are failures for recall). Using 0.8 vs 0.5 for now.
 - Growth is largest when recall was hard (low `recall_before`) and the word is easy (low `difficulty`). In massed practice recall is near 1, so ten hits in a row add little stability; spacing does the work.
 - Failures shrink stability but never reset it, so a word known before relearns faster (no "ease hell").
 - Compare: simplified FSRS stability update (FSRS also grows with 1 − R and shrinks with D, and uses a separate post-lapse formula). FSRS-7 splits stability into fast and slow; we keep one value.
+> Do we have a problem that Stability and Predicted recall have a circular dependency, or does the calculation order prevent any feedback loops without user behavior adjusting them?
 
 ## 6. Predicted recall (0 to 1)
 ```
@@ -116,9 +122,9 @@ pool        = the pool_size words with the highest word_recall below fluent_thre
 1. Pick a pool word at random (uniform), but not the previous target unless the pool has one word.
 2. Pick its skill (combination × case) with weight `(1 − predicted_recall) + 0.05` over unlocked skills, so the weakest is played most.
 3. Add that skill's `latency_avg_ms` to `planned_time_ms`.
-4. Repeat until `planned_time_ms` reaches `level_duration_ms`: 60,000 (1 minute) for levels 1–4, then 300,000 (5 minutes) from level 5.
+4. Repeat until `planned_time_ms` reaches `level_duration_ms`, which runs linearly from 100 s at level 1 to 300 s at level 5 (`100 s + 50 s × (level_number − 1)`), then stays at 300 s.
 
-Check, level 1: pool = 1 new word. With a 30 s starting latency, a 1-minute level holds only 2 targets, not "one word ten times". Open: conversation thread 17.
+Check, level 1: pool = 1 new word, starting latency 10 s, 100 s budget: 10 targets, "one word ten times". Fall time starts at 20 s.
 
 **Letter case** (for learning-language target text): each target is shown either as written (lowercase words, sentence case for phrases) or in ALL CAPS. Case is part of the skill, so both forms are tracked separately and both are unlocked from the start; level 1 shows one short word in both forms close together.
 
@@ -147,9 +153,10 @@ level_number − 1   if level_success_rate < level_success_avg − 0.2   (minimu
 ```
 At the start of each session:
 ```
-session_start_level = max(1, round(saved_level × average predicted_recall of the pool saved_level would pick))
+known_recall_avg    = average word_recall of the saved_level best-known words (fluent included)
+session_start_level = max(1, round(saved_level × min(1, known_recall_avg now / known_recall_avg at the end of the last level)))
 ```
-A daily player keeps their level; after a long break the level drops in proportion to what was forgotten, then climbs back by the +1 rule.
+A daily player keeps their level; after a long break the level drops in proportion to what was forgotten, then climbs back by the +1 rule. (Corrected from round 2: the pool's own recall excludes fluent words, so it would have lowered the level even for a daily player. `ModeProgress` stores the end-of-level average.)
 - The level number replaces the separate difficulty setting: level sets pool size, latency sets speed.
 - Sentence mode: `phrase_score = hits / (words in phrase + wrong taps)`.
 

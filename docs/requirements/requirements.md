@@ -131,7 +131,7 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 ## Levels and difficulty
 * Level 1 has 1 target word played 10 times. It assumes no prior knowledge: with only the right answer on screen, the association is learned from context alone.
 * Once targets have prior success, the screen shows distractors as well as the target.
-* Levels 1–4 last about 1 minute; from level 5 on, about 5 minutes. The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
+* Level length grows linearly from about 100 seconds at level 1 to 5 minutes at level 5, then stays at 5 minutes. The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
 * Each target's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen; distractors on screen with it fall at the same speed. Speed is independent of the level number.
 * At most 4 words on screen at once, to start; may later depend on level and screen size.
 * At session start the level is lowered in proportion to how much the pool has been forgotten (see selection.md §9), so a returning player starts at a fitting level.
