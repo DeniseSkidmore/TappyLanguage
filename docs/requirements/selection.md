@@ -87,12 +87,6 @@ predicted_recall   = success_avg × forgetting          (0 if no success yet)
 ```
 `forgetting` is the FSRS-4.5 curve: it reaches 0.9 when `days_since_success` = `stability_days`.
 
-Your questions:
-- **Is this the fluency value used for categories?** Yes, one value. It decays over time, so fluent words come back for review, as in normal spaced repetition.
-- **Previously known words relearning faster:** happens on its own. Their `stability_days` stays high (failures shrink it, never reset it), so after a few hits their recall holds up much longer than a new word's. No extra rule proposed.
-- **Hard thresholds lumping decayed words together:** solved by ranking instead of bands (§8). Thresholds are now used only for yes/no rules (§7).
-- Compare: FSRS retrievability uses the same curve; HLR uses `2^(−days/half_life)`; Leitner boxes are a coarse step version.
-
 ## 7. Skill states
 ```
 fluent:    predicted_recall ≥ fluent_threshold   (0.85)
@@ -101,7 +95,7 @@ learning:  everything else
 ```
 No recall threshold separates unproven from learning: a forgotten word with low recall is "learning", and ranking (§8) handles it. The remaining yes/no rules:
 - pool cutoff (fluent words stay out of the pool, §8);
-- one new (unproven) word per pool;
+- Maximum one new (unproven) word per pool;
 - the next combination unlocks after the previous one's first success;
 - a phrase is eligible once each of its words has a success (words with no translation of their own don't count).
 
@@ -120,6 +114,7 @@ pool        = the pool_size words with the highest word_recall below fluent_thre
 
 **Targets**
 1. Pick a pool word at random (uniform), but not the previous target unless the pool has one word.
+	1. If a phrase is selected, the words of the phrase will be the targets selected in that order.  The whole phrase will be finished even if this exceeds planned_time_ms.
 2. Pick its skill (combination × case) with weight `(1 − predicted_recall) + 0.05` over unlocked skills, so the weakest is played most.
 3. Add that skill's `latency_avg_ms` to `planned_time_ms`.
 4. Repeat until `planned_time_ms` reaches `level_duration_ms`, which runs linearly from 100 s at level 1 to 300 s at level 5 (`100 s + 50 s × (level_number − 1)`), then stays at 300 s.
@@ -128,13 +123,19 @@ Check, level 1: pool = 1 new word, starting latency 10 s, 100 s budget: 10 targe
 
 **Letter case** (for learning-language target text): each target is shown either as written (lowercase words, sentence case for phrases) or in ALL CAPS. Case is part of the skill, so both forms are tracked separately and both are unlocked from the start; level 1 shows one short word in both forms close together.
 
+> Revisit this rule when adding additional languages in the future where other capitalization schemes may be appropriate.
+
 `pool_size` grows with the level until the pool holds every item in the language pack; the level then shows "Max".
+
+> max level is the total number of items in the language pack, not just current pool size (current pool excludes fluent items, we don't want to reduce max level because the player is too good at it.)  Pool may be smaller than level for many levels at the end of the range.
 
 **Fall speed** (from latency only)
 ```
-fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)   (clamp proposed)
+fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)
 ```
 `target_travel_share` = 0.5: the average tap lands halfway down the screen. Distractors fall at the same speed as the target they appear with. At most 4 words on screen at once (tune later, maybe by level and screen size). Tracking latency spread to aim for exactly 90% success is deferred; halfway should do for now.
+
+> target and it's distractors are introduced in random order in sequence to begin their fall.  horizontal starting location is also randomized but will not push the word past the boundaries of the screen.
 
 **Distractors** (words on screen that are not the target)
 ```
@@ -149,7 +150,7 @@ A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5
 level_success_rate = hits / plays
 level_success_avg  = 0.7 × level_success_avg + 0.3 × level_success_rate
 level_number + 1   if level_success_rate > 0.9
-level_number − 1   if level_success_rate < level_success_avg − 0.2   (minimum 1)
+otherwise: level_number = level_number * level_success_rate (round up, minimum 1)
 ```
 At the start of each session:
 ```
@@ -159,6 +160,11 @@ session_start_level = max(1, round(saved_level × min(1, known_recall_avg now / 
 A daily player keeps their level; after a long break the level drops in proportion to what was forgotten, then climbs back by the +1 rule. (Corrected from round 2: the pool's own recall excludes fluent words, so it would have lowered the level even for a daily player. `ModeProgress` stores the end-of-level average.)
 - The level number replaces the separate difficulty setting: level sets pool size, latency sets speed.
 - Sentence mode: `phrase_score = hits / (words in phrase + wrong taps)`.
+
+> When level has just gone down, print level number in red.
+> When level number goes up, print level number in green.
+> If level has not changed (decrease formula rounded back up to current level) print in black.
+> If level does not change, start a wave counter and label wave 2, wave 3, etc...  Wave is only for user display and does not factor into level calculation.
 
 ## 10. Graphs and session length
 Mermaid line charts (render in GitHub and Obsidian). Series are listed in each caption, top line first.
