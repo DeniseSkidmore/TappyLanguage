@@ -38,7 +38,6 @@ class ProgressStore(private val file: File) {
             }
             ModeProgress(
                 levelNumber = json.getInt("levelNumber"),
-                levelSuccessAvg = json.getDouble("levelSuccessAvg"),
                 lastRecallAvg = json.optDouble("lastRecallAvg", 0.0),
             )
         } catch (e: Exception) {
@@ -64,7 +63,6 @@ class ProgressStore(private val file: File) {
         }
         val json = JSONObject()
             .put("levelNumber", progress.levelNumber)
-            .put("levelSuccessAvg", progress.levelSuccessAvg)
             .put("lastRecallAvg", progress.lastRecallAvg)
             .put("skills", skills)
         val tmp = File(file.parentFile, file.name + ".tmp")

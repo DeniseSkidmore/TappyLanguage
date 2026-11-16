@@ -41,6 +41,7 @@ Constraints:
 * Greek: no native speaker is available, so only existing recordings are used.
 * English: a native English speaker is available, so missing English audio can be recorded by us. Each recording is indexed in INDEX.csv with its speaker as author and an open license (CC BY-SA or CC0, TBD).
 * A word, sentence or phrase is playable only if it has a recording in the prompt language. (A text-only mode may be added later.)
+* An item whose audio file is missing at build time (e.g. the source no longer serves it) is left out of the build entirely.
 * Where no single-word recording exists, a word may be taken from a slice of a longer recording.
 * Translation data comes from an open-source dataset.
 * No data source with rehosting or redistribution restrictions.
@@ -84,7 +85,7 @@ When a word is selected, its combination is chosen with higher probability for t
 Running values only; no long-term play log.
 * During a level the app keeps that level's plays; they are folded into the running values while the between-levels screen shows, then discarded.
 * Per item (word or phrase) **and per prompt/target combination** (separate values; each combination is a different skill), the app stores:
-	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO). A wrong tap counts as a full failure, a timeout as a partial one.
+	* success: weighted average, recent plays weighted more (replaces the last-4 FIFO). A failure moves it more than a success, so fluency takes sustained success. A hit after wrong taps scores 1 / taps; a timeout scores 0.
 	* tap latency: weighted average, recent plays weighted more; sets the word's fall speed. Wrong taps don't change it; a timeout counts as 1.1 × the time the word was on screen.
 	* difficulty: seeded from word length and frequency, then moved by play outcomes; used for word selection, not speed
 	* stability
@@ -101,16 +102,16 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * Each word-combination has a **predicted recall** R (0–1), computed from weighted success and time since last success (forgetting curve). Comparable to FSRS retrievability, but used for word selection and difficulty, not only scheduling.
 * A new word starts at R = 0 with the lowest stability, so it is simply the most unproven word; no special case.
 * A word unseen for a long time decays toward low R and is treated like an unproven word, but its history gives it higher stability so it recovers faster (relearning). This also handles a user returning after a long break.
-* Word states are fixed ranges of R, used only for yes/no rules (pool cutoff, one-unproven rule, combination unlock, phrase eligibility):
+* Word states, used for yes/no rules (one-unproven rule, combination unlock, phrase eligibility) and display; no fluency cutoff in the pool:
 	* **unproven**: no success yet, or very low R. Presented only alongside better-known words, so the answer is clear from context.
 	* **learning**: between.
 	* **fluent**: R at or above the fluent threshold.
 * Stability is a single value per skill.
-* **Pool**: the level number is the pool size. The pool holds the words with the highest R below the fluent threshold, so fluent words fall back in as R decays.
-* At most 1 new word (no success yet) in the pool. A forgotten word is not "new"; its low R ranks it.
+* **Pool**: the level number is the pool size. The pool holds the played words with the highest R, fluent included, plus one new word when fewer words have been played than the level number.
+* At most 1 new word (no success yet) in the pool, played at least 5 times per level so it is learned by repetition. A forgotten word is not "new"; its low R ranks it.
 * **Letter case**: learning-language targets appear both as written and in ALL CAPS (e.g. Greek signs), tracked as separate skills and mixed from level 1, so both forms are learned together while repeats are high.
 * New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
-* **Targets** are drawn at random from the pool (no back-to-back repeat) until their expected tap times add up to about 5 minutes. Small pools therefore repeat words more.
+* **Targets** are drawn from the pool (no back-to-back repeat), weighted toward low R so fluent words still appear sometimes, until their expected tap times add up to the level length. Small pools therefore repeat words more.
 * Distractors have higher R than the target; the weaker the target, the better known its distractors.
 * A phrase is eligible only when all its words are learning or fluent.
 
@@ -125,7 +126,10 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * A non-target word reaching the bottom is ignored (no history update).
 * After a success, or a failure from the target reaching the bottom, a new visible play item becomes the target and its audio plays.
 * After failure due to word falling off edge of screen, flash the correct answer in red for 3 seconds before next prompt.
-* After failure due to incorrect target selection, flash the distractor red and continue main gain loop waiting for success or failure due to word falling off edge of screen.
+* After failure due to incorrect target selection, flash the distractor red and continue main game loop waiting for success or failure due to word falling off edge of screen.
+* A tap on empty space (no word) makes the words on screen fall 5% slower for the rest of that prompt. It changes no history.
+* Word touch targets are slightly larger than the drawn text (fixed margin, not adjusted during play).
+* The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen.
 * Each level has a pause button that stops play for this session.
 
 ## Levels and difficulty
@@ -134,12 +138,14 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * Level length grows linearly from about 100 seconds at level 1 to 5 minutes at level 5, then stays at 5 minutes. The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
 * Each target's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen; distractors on screen with it fall at the same speed. Speed is independent of the level number.
 * At most 4 words on screen at once, to start; may later depend on level and screen size.
-* At session start the level is lowered in proportion to how much the pool has been forgotten (see selection.md §9), so a returning player starts at a fitting level.
-* The level number goes up when the previous level's success rate is above 90%.
+* At session start (app launch, or resume after an hour or more idle) the level is lowered in proportion to how much the best-known words have been forgotten (see selection.md §9), so a returning player starts at a fitting level.
+* The level number goes up by 1 when the previous level's success rate is above 90%.
 * The pool keeps growing with the level until it holds every word and phrase in the language pack. At that point the level number stops increasing and the game shows "Max" in its place.
-* Within a session, the level drops by 1 when a level's success rate is well below the historical average.
+* Otherwise the level stays while words already known are still hit (80% or more), even if the newest words are missed, and drops by 1 when they are not (selection.md §9).
+* The level label is red after a drop, green after a rise, black when unchanged; while unchanged it also shows "wave 2", "wave 3", … (display only).
+* Prototype only: each level's play log is saved to a debug file on the device, keeping the 10 newest.
 * Between levels: a message of about 3 seconds listing words whose success rate improved, a starburst, then the next level starts.
-* The level number and running average level success rate is saved per game mode and restored on the next app launch.
+* The level number is saved per game mode and restored on the next app launch.
 
 ## Modes and settings
 * Gameplay interface (selectable in settings): falling words only, for now.

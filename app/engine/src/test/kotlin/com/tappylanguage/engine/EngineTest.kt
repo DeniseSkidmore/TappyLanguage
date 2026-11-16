@@ -36,12 +36,32 @@ class MemoryTest {
         assertEquals(0.0, Memory.predictedRecall(skill, T0))
     }
 
-    @Test fun `about 9 hits in a row pass the fluent threshold (graph C)`() {
+    @Test fun `19 clean hits in a row pass the fluent threshold (graph C)`() {
         var s = skill
-        repeat(8) { s = Memory.apply(s, hit(s.key, T0 + it)) }
+        repeat(18) { s = Memory.apply(s, hit(s.key, T0 + it)) }
         assertTrue(s.successAvg < Params.FLUENT_THRESHOLD)
-        s = Memory.apply(s, hit(s.key, T0 + 9))
+        s = Memory.apply(s, hit(s.key, T0 + 19))
         assertTrue(s.successAvg > Params.FLUENT_THRESHOLD)
+    }
+
+    @Test fun `a failure at 0_85 drops success to about 0_64 and 9 hits recover it`() {
+        var s = skill.copy(successAvg = 0.85)
+        s = Memory.apply(s, Play(s.key, PlayOutcome.TIMEOUT, null, 20_000, T0))
+        assertEquals(0.6375, s.successAvg, 1e-9)
+        repeat(8) { s = Memory.apply(s, hit(s.key, T0 + it)) }
+        assertTrue(s.successAvg < 0.85)
+        s = Memory.apply(s, hit(s.key, T0 + 9))
+        assertTrue(s.successAvg >= 0.85)
+    }
+
+    @Test fun `hit after one wrong tap scores 0_5 and is a failure`() {
+        val play = Play(skill.key, PlayOutcome.HIT, 3_000, 20_000, T0, taps = 2)
+        assertEquals(0.5, Memory.playScore(play), 1e-9)
+        val s = Memory.apply(skill, play)
+        assertEquals(0.25 * 0.5, s.successAvg, 1e-9)
+        assertEquals(Params.MIN_STABILITY_DAYS, s.stabilityDays, 1e-9)
+        assertEquals(0.8 * 10_000 + 0.2 * 3_000, s.latencyAvgMs, 1e-9) // a hit always samples latency
+        assertNull(s.lastSuccessMs)
     }
 
     @Test fun `timeout is a failure and samples 1_1 x opportunity as latency`() {
@@ -52,7 +72,7 @@ class MemoryTest {
         assertNull(s.lastSuccessMs)
     }
 
-    @Test fun `wrong tap halves stability and leaves latency alone`() {
+    @Test fun `tapped distractor halves stability and leaves latency alone`() {
         val s = Memory.apply(skill, Play(skill.key, PlayOutcome.WRONG_TAP, null, 20_000, T0))
         assertEquals(Params.START_LATENCY_MS, s.latencyAvgMs)
         assertEquals(Params.MIN_STABILITY_DAYS, s.stabilityDays, 1e-9) // 0.1 × 0.5 = 0.05 = floor
@@ -89,6 +109,42 @@ class LevelPlannerTest {
         assertEquals(1, plan.pool.size)
         assertEquals(10, plan.targets.size)
         assertEquals(1, plan.targets.map { it.itemKey }.toSet().size)
+        assertTrue(plan.establishedKeys.isEmpty())
+    }
+
+    /** Store where every word of `words` has a clean history with the given recall-ish success. */
+    private fun known(store: SkillStore, success: Double, vararg words: String) = words.forEach { w ->
+        TargetCase.entries.forEach { c ->
+            store.put(Skill(ll(w, c), successAvg = success, difficulty = 0.3, stabilityDays = 30.0,
+                lastSuccessMs = T0, lastPlayedMs = T0))
+        }
+    }
+
+    @Test fun `fluent words stay in the pool and a new word joins when there is room`() {
+        val store = SkillStore(pack)
+        known(store, 0.95, "ναι", "όχι")
+        val planner = LevelPlanner(pack, store, Random(4))
+        val pool = planner.pool(3, T0)
+        assertEquals(setOf("ναι", "όχι", "και"), pool.map { it.text }.toSet())
+        assertEquals(2, planner.pool(2, T0).size) // no room: no new word
+    }
+
+    @Test fun `the new word gets at least 5 plays and fluent words still appear`() {
+        val store = SkillStore(pack)
+        known(store, 0.95, "ναι", "όχι")
+        val planner = LevelPlanner(pack, store, Random(5))
+        val plan = planner.plan(3, T0)
+        val counts = plan.targets.groupingBy { it.itemKey }.eachCount()
+        assertTrue((counts[TextForms.matchKey("και")] ?: 0) >= Params.NEW_WORD_MIN_PLAYS)
+        assertTrue((counts[TextForms.matchKey("ναι")] ?: 0) + (counts[TextForms.matchKey("όχι")] ?: 0) > 0)
+        assertEquals(setOf(TextForms.matchKey("ναι"), TextForms.matchKey("όχι")), plan.establishedKeys)
+    }
+
+    @Test fun `no back-to-back repeats when the pool has several words`() {
+        val store = SkillStore(pack)
+        known(store, 0.5, "ναι", "όχι", "και")
+        val plan = LevelPlanner(pack, store, Random(6)).plan(3, T0)
+        plan.targets.zipWithNext().forEach { (a, b) -> assertTrue(a.itemKey != b.itemKey) }
     }
 
     @Test fun `level duration runs 100 s to 300 s over levels 1 to 5`() {
@@ -120,22 +176,24 @@ class LevelPlannerTest {
         assertTrue(planner.distractors(target, T0).isEmpty())
     }
 
-    @Test fun `level goes up above 90 percent and down well below average`() {
-        val planner = LevelPlanner(pack, SkillStore(pack))
-        val progress = ModeProgress(levelNumber = 2, levelSuccessAvg = 0.8)
-        assertEquals(3, planner.levelResult(progress, hits = 10, prompts = 10).nextLevel)
-        assertEquals(1, planner.levelResult(progress, hits = 5, prompts = 10).nextLevel)
-        assertEquals(2, planner.levelResult(progress, hits = 8, prompts = 10).nextLevel)
+    @Test fun `level up above 90 percent, stay while established words hold, else down 1 (thread 22 examples)`() {
+        val planner = LevelPlanner(pack("α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ", "λ", "μ"), SkillStore(pack))
+        fun tally(newHits: Int, newPlays: Int, estHits: Int, estPlays: Int): LevelTally {
+            var t = LevelTally()
+            repeat(newPlays) { t = t.add(clean = it < newHits, established = false) }
+            repeat(estPlays) { t = t.add(clean = it < estHits, established = true) }
+            return t
+        }
+        assertEquals(11, planner.levelResult(10, tally(4, 5, 24, 25)).nextLevel) // 28/30
+        assertEquals(10, planner.levelResult(10, tally(2, 5, 24, 25)).nextLevel) // 26/30, est 0.96
+        assertEquals(9, planner.levelResult(10, tally(5, 5, 19, 25)).nextLevel)  // est 0.76
+        assertEquals(1, planner.levelResult(1, tally(0, 10, 0, 0)).nextLevel)    // no established: stay
     }
 
     @Test fun `session start keeps the level for a daily player and drops it after a long break`() {
         val store = SkillStore(pack)
-        pack.items.forEach { item ->
-            TargetCase.entries.forEach { c ->
-                store.put(Skill(SkillKey(item.key, Combination.LEARNING_LEARNING, c), successAvg = 0.9,
-                    difficulty = 0.3, stabilityDays = 2.0, lastSuccessMs = T0, lastPlayedMs = T0))
-            }
-        }
+        known(store, 0.9, "ναι", "όχι", "και")
+        store.all().toList().forEach { store.put(it.copy(stabilityDays = 2.0)) }
         val planner = LevelPlanner(pack, store)
         val progress = ModeProgress(levelNumber = 3, lastRecallAvg = planner.knownRecallAverage(3, T0))
         assertEquals(3, planner.sessionStartLevel(progress, T0 + DAY / 24))

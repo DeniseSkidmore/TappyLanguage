@@ -1,7 +1,7 @@
 {
   "language": "el",
   "vocabularySize": 50000,
-  "note": "Prototype pack. Audio: Wikimedia Commons, see data/language/greek/INDEX.csv. Frequency ranks: hermitdave/FrequencyWords el_50k (CC BY-SA 4.0).",
+  "note": "Prototype pack (source). buildPack copies it into the app's assets, dropping items whose audio is missing. Audio: Wikimedia Commons, see data/language/greek/INDEX.csv. Frequency ranks: hermitdave/FrequencyWords el_50k (CC BY-SA 4.0).",
   "items": [
     { "text": "και", "audio": "kai.ogg", "frequencyRank": 6 },
     { "text": "όχι", "audio": "ochi.wav", "frequencyRank": 25 },

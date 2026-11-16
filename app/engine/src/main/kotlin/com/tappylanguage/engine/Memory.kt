@@ -26,37 +26,42 @@ object Memory {
             .coerceIn(Params.MIN_INITIAL_DIFFICULTY, 1.0)
     }
 
-    /** §2: timeouts and wrong taps are both failures for recall. */
-    fun playScore(outcome: PlayOutcome): Double = if (outcome == PlayOutcome.HIT) 1.0 else 0.0
+    /** §2: 1 / taps on a hit; 0 on a timeout or a tapped distractor. */
+    fun playScore(play: Play): Double =
+        if (play.outcome == PlayOutcome.HIT) 1.0 / max(1, play.taps) else 0.0
 
-    /** §2: latency sample, or null when latency must not change (wrong tap). */
+    /** §2: latency sample, or null when latency must not change (tapped distractor). */
     fun latencySample(play: Play): Double? = when (play.outcome) {
         PlayOutcome.HIT -> play.latencyMs?.toDouble()
         PlayOutcome.TIMEOUT -> Params.TIMEOUT_LATENCY_FACTOR * play.opportunityMs
         PlayOutcome.WRONG_TAP -> null
     }
 
+    /** §3: success counts less than failure. */
+    fun weight(play: Play): Double = if (play.isSuccess) Params.SUCCESS_WEIGHT else Params.FAILURE_WEIGHT
+
     /** §3 + §5: fold one play into a skill's running values. */
     fun apply(skill: Skill, play: Play): Skill {
-        val w = Params.RECENCY_WEIGHT
-        val score = playScore(play.outcome)
+        val w = weight(play)
+        val score = playScore(play)
         val recallBefore = predictedRecall(skill, play.atMs)
         val sample = latencySample(play)
-        val stability = when (play.outcome) {
-            PlayOutcome.HIT ->
+        val stability = when {
+            play.isSuccess ->
                 skill.stabilityDays * (1 + Params.GROWTH_RATE * (1 - skill.difficulty) * (1 - recallBefore))
-            PlayOutcome.WRONG_TAP ->
-                max(Params.MIN_STABILITY_DAYS, skill.stabilityDays * Params.WRONG_TAP_STABILITY_FACTOR)
-            PlayOutcome.TIMEOUT ->
+            play.outcome == PlayOutcome.TIMEOUT ->
                 max(Params.MIN_STABILITY_DAYS, skill.stabilityDays * Params.TIMEOUT_STABILITY_FACTOR)
+            else -> // hit after wrong taps, or a tapped distractor
+                max(Params.MIN_STABILITY_DAYS, skill.stabilityDays * Params.WRONG_TAP_STABILITY_FACTOR)
         }
+        val lw = Params.LATENCY_WEIGHT
         return skill.copy(
             successAvg = (1 - w) * skill.successAvg + w * score,
-            latencyAvgMs = sample?.let { (1 - w) * skill.latencyAvgMs + w * it } ?: skill.latencyAvgMs,
+            latencyAvgMs = sample?.let { (1 - lw) * skill.latencyAvgMs + lw * it } ?: skill.latencyAvgMs,
             difficulty = (1 - w) * skill.difficulty + w * (1 - score),
             stabilityDays = stability,
             lastPlayedMs = play.atMs,
-            lastSuccessMs = if (score == 1.0) play.atMs else skill.lastSuccessMs,
+            lastSuccessMs = if (play.isSuccess) play.atMs else skill.lastSuccessMs,
         )
     }
 }

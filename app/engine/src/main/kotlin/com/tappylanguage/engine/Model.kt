@@ -43,19 +43,27 @@ data class Skill(
     val lastPlayedMs: Long? = null,
 )
 
-/** One entry of the level play log (selection.md §1). */
+/**
+ * One entry of the level play log (selection.md §1).
+ * A target prompt gives one play: HIT (taps = taps on words including the hit) or TIMEOUT.
+ * Each tapped distractor gives its own WRONG_TAP play.
+ */
 data class Play(
     val skill: SkillKey,
     val outcome: PlayOutcome,
     val latencyMs: Long?,
     val opportunityMs: Long,
     val atMs: Long,
-)
+    val taps: Int = if (outcome == PlayOutcome.HIT) 1 else 0,
+    val wrongTapSkills: List<SkillKey> = emptyList(),
+) {
+    /** Clean hit: the only success for weights, stability and last_success. */
+    val isSuccess: Boolean get() = outcome == PlayOutcome.HIT && taps == 1
+}
 
 /** Saved per pair and content mode. */
 data class ModeProgress(
     val levelNumber: Int = 1,
-    val levelSuccessAvg: Double = 0.0,
-    /** Average recall of the known pool at the end of the last level; used for the session-start level. */
+    /** Average recall of the best-known words at the end of the last level; used for the session-start level. */
     val lastRecallAvg: Double = 0.0,
 )

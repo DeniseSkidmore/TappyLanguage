@@ -145,7 +145,6 @@ classDiagram
         pair : String
         contentMode : ContentMode
         levelNumber : Int
-        levelSuccessAvg : Double
         lastRecallAvg : Double
     }
     class Settings {
@@ -173,9 +172,10 @@ classDiagram
     class Play {
         targetSkill : Skill
         outcome : PlayOutcome
+        taps : Int
         latencyMs : Int?
         opportunityMs : Int
-        wrongTapItem : Item?
+        wrongTapItems : List~Item~
     }
     class PhraseAttempt {
         phrase : Item
@@ -194,3 +194,4 @@ classDiagram
     Level "1" --> "1" LevelResult
 ```
 - `opportunityMs` = time from prompt until the target leaves the screen.
+- One `Play` per prompt (outcome HIT or TIMEOUT); each tapped distractor gets its own WRONG_TAP play (selection.md §1).

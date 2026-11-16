@@ -14,7 +14,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val pack = PackLoader.load(assets, "packs/el-prototype.json")
         audio = AudioPlayer(assets)
-        controller = GameController(pack, ProgressStore(File(filesDir, "progress-el.json")), audio)
+        controller = GameController(
+            pack,
+            ProgressStore(File(filesDir, "progress-el.json")),
+            PlayLog(File(filesDir, "playlogs")),
+            audio,
+        )
         setContent { MaterialTheme { GameScreen(controller) } }
     }
 
