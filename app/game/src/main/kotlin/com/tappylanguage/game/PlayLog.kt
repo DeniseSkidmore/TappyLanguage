@@ -12,6 +12,11 @@ import java.io.File
  */
 class PlayLog(private val dir: File, private val keep: Int = 10) {
 
+    /** Reset player data: remove all play logs. */
+    fun clear() {
+        dir.deleteRecursively()
+    }
+
     fun write(plays: List<Play>, nowMs: Long) {
         if (plays.isEmpty()) return
         try {

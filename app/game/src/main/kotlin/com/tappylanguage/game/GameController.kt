@@ -74,7 +74,7 @@ class GameController(
 
     // Current prompt
     private var promptActive = false
-    private var promptStartMs = 0L        // when the target entered and its audio played
+    private var promptStartMs = 0L        // when the target entered (audio played at the group's start)
     private var promptTaps = 0            // taps on words, including the final hit
     private val promptWrongSkills = mutableListOf<SkillKey>()
     private val pendingEntries = mutableListOf<FallingWord>() // waiting to enter, in order
@@ -171,6 +171,11 @@ class GameController(
         if (phase != Phase.PAUSED) togglePause()
     }
 
+    /** Back from the menu; after an hour or more this starts a new session (see togglePause). */
+    fun resume() {
+        if (phase == Phase.PAUSED) togglePause()
+    }
+
     fun progressOf(word: FallingWord, now: Long): Float =
         ((now - word.startMs).toFloat() / word.fallMs).coerceIn(0f, 1f)
 
@@ -237,6 +242,7 @@ class GameController(
         promptTaps = 0
         promptWrongSkills.clear()
         promptActive = true
+        audio.play(item.audioFile) // at the start of the group, so timing doesn't reveal which word is the target
         enterPending(now)
     }
 
@@ -245,10 +251,7 @@ class GameController(
             val w = pendingEntries.removeAt(0).copy(startMs = now)
             falling += w
             nextEntryMs = now + min(MAX_ENTRY_GAP_MS, w.fallMs / ENTRY_GAP_DIVISOR)
-            if (w.isTarget) {
-                promptStartMs = now
-                audio.play(pack.item(w.skill.itemKey)?.audioFile)
-            }
+            if (w.isTarget) promptStartMs = now // latency counts from when the target is on screen
         }
     }
 

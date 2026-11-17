@@ -157,13 +157,18 @@ class LevelPlanner(
     fun distractorMinRecall(targetRecall: Double): Double =
         targetRecall + (1 - targetRecall) * Params.DISTRACTOR_GAP
 
+    /**
+     * §8: words above the threshold, at random. If none qualify, the best-known other played words
+     * instead (none only while no other word has been played, e.g. level 1).
+     */
     fun distractors(target: SkillKey, nowMs: Long, max: Int = Params.MAX_ON_SCREEN - 1): List<SkillKey> {
         val minRecall = distractorMinRecall(recall(target, nowMs))
-        return pack.items
-            .filter { it.key != target.itemKey && wordRecall(it, nowMs) >= minRecall }
-            .shuffled(random)
-            .take(max)
-            .map { SkillKey(it.key, target.combination, TargetCase.entries.random(random)) }
+        val others = pack.items.filter { it.key != target.itemKey }
+        val qualifying = others.filter { wordRecall(it, nowMs) >= minRecall }.shuffled(random).take(max)
+        val chosen = qualifying.ifEmpty {
+            others.filter { wasPlayed(it) }.sortedByDescending { wordRecall(it, nowMs) }.take(max)
+        }
+        return chosen.map { SkillKey(it.key, target.combination, TargetCase.entries.random(random)) }
     }
 
     /**

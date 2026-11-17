@@ -142,13 +142,13 @@ fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)
 ```
 `target_travel_share` = 0.5: the average tap lands halfway down the screen. Distractors fall at the same speed as the target they appear with. At most 4 words on screen at once (tune later, maybe by level and screen size). Tracking latency spread to aim for exactly 90% success is deferred; halfway should do for now.
 - **Empty tap:** a tap that hits no word makes every word on screen fall 5% slower for the rest of that prompt (fall time × 1/0.95 per tap, up to the 60,000 ms limit). It changes no history; slow hits and timeouts already move latency.
-- **Entry:** a target and its distractors start falling one at a time, in random order, each at a random horizontal position that keeps the whole word on screen.
+- **Entry:** a target and its distractors start falling one at a time, in random order, each at a random horizontal position that keeps the whole word on screen. The prompt audio plays when the group starts, so its timing doesn't reveal which word is the target; `latency_ms` and `opportunity_ms` count from when the target itself appears.
 
 **Distractors** (words on screen that are not the target)
 ```
 distractor_min_recall = target_recall + (1 − target_recall) × 0.5
 ```
-A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5; target 0.8 → ≥ 0.9). Level 1 has none. If none qualify, show copies of the target instead (tapping any copy is a hit).
+A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5; target 0.8 → ≥ 0.9). If none qualify, the best-known other played words are used instead. Level 1 has none (no other word has been played yet).
 
 **Phrases:** eligible only when every word in the phrase is learning or fluent in the phrase's combination.
 

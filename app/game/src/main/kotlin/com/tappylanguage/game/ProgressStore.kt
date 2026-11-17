@@ -45,6 +45,12 @@ class ProgressStore(private val file: File) {
         }
     }
 
+    /** Reset player data: remove the saved progress. */
+    fun delete() {
+        file.delete()
+        File(file.parentFile, file.name + ".tmp").delete()
+    }
+
     fun save(store: SkillStore, progress: ModeProgress) {
         val skills = JSONArray()
         store.all().forEach { s ->

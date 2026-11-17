@@ -41,7 +41,7 @@ private val TouchMarginV = 16.dp
 
 /** The one game screen: falling words, tap, feedback. A @Composable is a view written as a function. */
 @Composable
-fun GameScreen(controller: GameController) {
+fun GameScreen(controller: GameController, onMenu: () -> Unit) {
     // Frame loop: like a CompositionTarget.Rendering handler in WPF.
     LaunchedEffect(Unit) {
         while (true) withFrameMillis { controller.tick(System.currentTimeMillis()) }
@@ -106,9 +106,7 @@ fun GameScreen(controller: GameController) {
             }
             val wave = if (controller.wave > 1) "  wave ${controller.wave}" else ""
             Text("Level ${controller.levelLabel}$wave", color = labelColor, fontSize = 18.sp, modifier = Modifier.weight(1f))
-            Button(onClick = controller::togglePause) {
-                Text(if (controller.phase == GameController.Phase.PAUSED) "Resume" else "Pause")
-            }
+            Button(onClick = onMenu) { Text("Menu") } // the game pauses while the menu shows
         }
 
         when (controller.phase) {

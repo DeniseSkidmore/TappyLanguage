@@ -140,6 +140,15 @@ class LevelPlannerTest {
         assertEquals(setOf(TextForms.matchKey("ναι"), TextForms.matchKey("όχι")), plan.establishedKeys)
     }
 
+    @Test fun `with no qualifying distractor the best-known played words are used`() {
+        val store = SkillStore(pack)
+        known(store, 0.3, "ναι")
+        known(store, 0.2, "όχι")
+        val planner = LevelPlanner(pack, store, Random(7))
+        // target ναι (0.3) needs distractors >= 0.65: none qualify, so the played όχι falls back in; και is unplayed
+        assertEquals(listOf(TextForms.matchKey("όχι")), planner.distractors(ll("ναι"), T0).map { it.itemKey })
+    }
+
     @Test fun `no back-to-back repeats when the pool has several words`() {
         val store = SkillStore(pack)
         known(store, 0.5, "ναι", "όχι", "και")

@@ -13,6 +13,7 @@ plugins {
  */
 abstract class BuildPackTask : DefaultTask() {
     @get:InputFile abstract val sourcePack: RegularFileProperty
+    @get:InputFile abstract val index: RegularFileProperty
     @get:InputFiles abstract val audioFiles: ConfigurableFileCollection
     @get:OutputDirectory abstract val outputDir: DirectoryProperty
 
@@ -26,10 +27,50 @@ abstract class BuildPackTask : DefaultTask() {
         val (kept, dropped) = items.partition { (it["audio"] as? String) in present }
         dropped.forEach { logger.warn("buildPack: dropped '${it["text"]}' (audio '${it["audio"]}' not found)") }
         pack["items"] = kept
-        val out = outputDir.get().file("packs/${sourcePack.get().asFile.name}").asFile
+        val name = sourcePack.get().asFile.nameWithoutExtension
+        write("packs/$name.json", pack)
+
+        // Attributions for the audio actually shipped, from INDEX.csv (CLAUDE.md: generated from INDEX.csv).
+        val rows = readCsv(index.get().asFile).associateBy { it["path"].orEmpty().substringAfterLast('/') }
+        val credits = kept.mapNotNull { item ->
+            val row = rows[item["audio"] as String]
+            if (row == null) { logger.warn("buildPack: no INDEX.csv row for '${item["audio"]}'"); null }
+            else mapOf("text" to item["text"], "file" to item["audio"], "author" to row["author"],
+                "license" to row["license"], "sourceUrl" to row["source_url"], "retrieved" to row["retrieved"])
+        }
+        write("packs/$name-credits.json", mapOf("audio" to credits))
+        logger.lifecycle("buildPack: ${kept.size} items kept, ${dropped.size} dropped, ${credits.size} credits")
+    }
+
+    private fun write(relative: String, value: Any) {
+        val out = outputDir.get().file(relative).asFile
         out.parentFile.mkdirs()
-        out.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(pack)), Charsets.UTF_8)
-        logger.lifecycle("buildPack: ${kept.size} items kept, ${dropped.size} dropped")
+        out.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(value)), Charsets.UTF_8)
+    }
+
+    /** Minimal RFC 4180 reader: commas, double-quoted fields, "" escapes. */
+    private fun readCsv(file: File): List<Map<String, String>> {
+        val lines = file.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
+        fun split(line: String): List<String> {
+            val fields = mutableListOf<String>()
+            val sb = StringBuilder()
+            var quoted = false
+            var i = 0
+            while (i < line.length) {
+                val c = line[i]
+                when {
+                    quoted && c == '"' && i + 1 < line.length && line[i + 1] == '"' -> { sb.append('"'); i++ }
+                    c == '"' -> quoted = !quoted
+                    c == ',' && !quoted -> { fields += sb.toString(); sb.clear() }
+                    else -> sb.append(c)
+                }
+                i++
+            }
+            fields += sb.toString()
+            return fields
+        }
+        val header = split(lines.first())
+        return lines.drop(1).map { line -> header.zip(split(line)).toMap() }
     }
 }
 
@@ -37,6 +78,7 @@ val audioDir = "../../data/language/greek/commons"
 
 val buildPack = tasks.register<BuildPackTask>("buildPack") {
     sourcePack.set(layout.projectDirectory.file("src/pack/el-prototype.json"))
+    index.set(layout.projectDirectory.file("../../data/language/greek/INDEX.csv"))
     audioFiles.from(fileTree(audioDir)) // empty (not an error) on a machine without the audio
 }
 

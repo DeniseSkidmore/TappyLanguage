@@ -112,7 +112,7 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * **Letter case**: learning-language targets appear both as written and in ALL CAPS (e.g. Greek signs), tracked as separate skills and mixed from level 1, so both forms are learned together while repeats are high.
 * New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
 * **Targets** are drawn from the pool (no back-to-back repeat), weighted toward low R so fluent words still appear sometimes, until their expected tap times add up to the level length. Small pools therefore repeat words more.
-* Distractors have higher R than the target; the weaker the target, the better known its distractors.
+* Distractors have higher R than the target; the weaker the target, the better known its distractors. If none qualify, the best-known other played words are used.
 * A phrase is eligible only when all its words are learning or fluent.
 
 ## Game play
@@ -129,8 +129,8 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * After failure due to incorrect target selection, flash the distractor red and continue main game loop waiting for success or failure due to word falling off edge of screen.
 * A tap on empty space (no word) makes the words on screen fall 5% slower for the rest of that prompt. It changes no history.
 * Word touch targets are slightly larger than the drawn text (fixed margin, not adjusted during play).
-* The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen.
-* Each level has a pause button that stops play for this session.
+* The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen. The prompt audio plays at the start of the group (not when the target appears); tap latency counts from when the target appears.
+* The game screen has a Menu button; play is paused while the menu shows (see Menu).
 
 ## Levels and difficulty
 * Level 1 has 1 target word played 10 times. It assumes no prior knowledge: with only the right answer on screen, the association is learned from context alone.
@@ -146,6 +146,18 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * Prototype only: each level's play log is saved to a debug file on the device, keeping the 10 newest.
 * Between levels: a message of about 3 seconds listing words whose success rate improved, a starburst, then the next level starts.
 * The level number is saved per game mode and restored on the next app launch.
+
+## Menu
+* The app opens on the menu. On the game screen a Menu button (in place of Pause) returns to it; the game is paused while the menu shows, and Play resumes it.
+* Menu items:
+	* **Play**: each Play is a session start (after an hour or more away, the session-start level applies).
+	* **Reset player data**: after a confirmation, deletes all progress and play logs for the language; the level returns to 1.
+	* **How to Play**: a short text screen.
+	* **About Language Pack**:
+		* Progress: every word as a coloured chip, ordered by recall so the chips read as a bar. Not started: outlined grey; learning: grey at R = 0 shading to yellow just below fluent; fluent: green. A summary line gives the counts.
+		* License and attributions, generated at build time from the language's `INDEX.csv` for the audio actually shipped, plus the word-frequency source.
+	* **About App**: app version, GPL-3.0 notice, source link.
+* URLs on the About screens are tappable and open in the browser.
 
 ## Modes and settings
 * Gameplay interface (selectable in settings): falling words only, for now.
