@@ -36,7 +36,9 @@ abstract class BuildPackTask : DefaultTask() {
             val row = rows[item["audio"] as String]
             if (row == null) { logger.warn("buildPack: no INDEX.csv row for '${item["audio"]}'"); null }
             else mapOf("text" to item["text"], "file" to item["audio"], "author" to row["author"],
-                "license" to row["license"], "sourceUrl" to row["source_url"], "retrieved" to row["retrieved"])
+                "license" to row["license"], "sourceUrl" to row["source_url"], "retrieved" to row["retrieved"],
+                // A slice of a longer recording is a modification; the credits must say so (CC BY-SA).
+                "excerpt" to !row["start_ms"].isNullOrBlank())
         }
         write("packs/$name-credits.json", mapOf("audio" to credits))
         logger.lifecycle("buildPack: ${kept.size} items kept, ${dropped.size} dropped, ${credits.size} credits")

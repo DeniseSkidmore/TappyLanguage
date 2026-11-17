@@ -3,10 +3,11 @@ package com.tappylanguage.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,8 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -65,6 +68,12 @@ private fun Page(title: String, onBack: (() -> Unit)?, content: @Composable () -
 
 private val UrlPattern = Regex("""https?://[^\s,]+""")
 private val LinkColor = Color(0xFF64B5F6)
+private val LinkStyles = TextLinkStyles(SpanStyle(color = LinkColor, textDecoration = TextDecoration.Underline))
+
+/** Appends `label`, as a link to `url` when there is one. */
+private fun AnnotatedString.Builder.appendLink(label: String, url: String?) {
+    if (url.isNullOrBlank()) append(label) else withLink(LinkAnnotation.Url(url, LinkStyles)) { append(label) }
+}
 
 /** Body text; any http(s) URL in it becomes a tappable link that opens in the browser. */
 @Composable
@@ -74,9 +83,7 @@ private fun Body(text: String, color: Color = TextColor) {
         UrlPattern.findAll(text).forEach { m ->
             append(text.substring(last, m.range.first))
             // LinkAnnotation.Url: Text opens it via the platform URI handler (C#: Process.Start(url)).
-            withLink(LinkAnnotation.Url(m.value, TextLinkStyles(SpanStyle(color = LinkColor, textDecoration = TextDecoration.Underline)))) {
-                append(m.value)
-            }
+            appendLink(m.value, m.value)
             last = m.range.last + 1
         }
         append(text.substring(last))
@@ -127,7 +134,6 @@ fun HowToPlayScreen(onBack: () -> Unit) = Page("How to Play", onBack) {
     Body("Quit any time, your progress is saved after every level.")
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AboutPackScreen(
     languageName: String,
@@ -142,31 +148,44 @@ fun AboutPackScreen(
     val learning = words.count { it.state == WordState.LEARNING }
     val notStarted = words.count { it.state == WordState.NOT_STARTED }
     Body("$fluent fluent, $learning learning, $notStarted not started", Muted)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        words.forEach { WordChip(it) }
+    // One unlabeled chip per word, equal widths, no gaps (C#: a UniformGrid with one row).
+    Row(Modifier.fillMaxWidth().height(24.dp).clip(RoundedCornerShape(4.dp))) {
+        words.forEach { WordChip(it, Modifier.weight(1f).fillMaxHeight()) }
     }
 
-    Text("License and attributions", color = TextColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    Text("Thanks to language pack contributors", color = TextColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     Body("Audio recordings:", Muted)
-    credits.forEach { c ->
-        Body("${c.text}: ${c.author}, ${c.license}\n${c.sourceUrl}")
+    PackInfo.group(credits).forEach { site ->
+        Text(site.domain, color = TextColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        site.licenses.forEach { lic ->
+            Text(buildAnnotatedString { appendLink(lic.license, lic.licenseUrl) },
+                color = Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp))
+            lic.authors.forEach { (author, items) ->
+                Text(buildAnnotatedString {
+                    append("$author: ")
+                    items.forEachIndexed { i, c ->
+                        if (i > 0) append(", ")
+                        appendLink(c.text, c.sourceUrl)
+                        if (c.excerpt) append("*")
+                    }
+                }, color = TextColor, fontSize = 16.sp, modifier = Modifier.padding(start = 24.dp))
+            }
+        }
     }
+    if (credits.any { it.excerpt }) Body("* excerpt cut from a longer recording", Muted)
     if (credits.isEmpty()) Body("(no attribution data in this build)", Muted)
     Body("Word frequency: hermitdave/FrequencyWords (el_50k), CC BY-SA 4.0, https://github.com/hermitdave/FrequencyWords", Muted)
 }
 
 @Composable
-private fun WordChip(word: WordProgress) {
-    val shape = RoundedCornerShape(8.dp)
-    val base = Modifier.padding(0.dp)
-    val modifier = when (word.state) {
-        WordState.NOT_STARTED -> base.border(1.dp, NotStarted, shape)
-        WordState.LEARNING -> base.background(
-            lerp(LearningLow, LearningHigh, (word.recall / Params.FLUENT_THRESHOLD).toFloat().coerceIn(0f, 1f)), shape)
-        WordState.FLUENT -> base.background(Fluent, shape)
+private fun WordChip(word: WordProgress, modifier: Modifier) {
+    val chip = when (word.state) {
+        WordState.NOT_STARTED -> modifier.border(1.dp, NotStarted)
+        WordState.LEARNING -> modifier.background(
+            lerp(LearningLow, LearningHigh, (word.recall / Params.FLUENT_THRESHOLD).toFloat().coerceIn(0f, 1f)))
+        WordState.FLUENT -> modifier.background(Fluent)
     }
-    val textColor = if (word.state == WordState.NOT_STARTED) NotStarted else Color(0xFF101820)
-    Text(word.text, color = textColor, fontSize = 16.sp, modifier = modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+    Box(chip)
 }
 
 @Composable

@@ -13,7 +13,26 @@ data class AudioCredit(
     val author: String,
     val license: String,
     val sourceUrl: String,
+    /** Cut from a longer recording (INDEX.csv has start_ms/end_ms). */
+    val excerpt: Boolean = false,
+) {
+    /** Source site, e.g. "commons.wikimedia.org". */
+    val domain: String get() = runCatching { java.net.URI(sourceUrl).host?.removePrefix("www.") }.getOrNull() ?: "other"
+}
+
+/** Credits grouped for display: site → license → author → that author's credits. */
+data class CreditGroup(val domain: String, val licenses: List<LicenseGroup>)
+data class LicenseGroup(val license: String, val licenseUrl: String?, val authors: List<Pair<String, List<AudioCredit>>>)
+
+private val LicenseUrls = mapOf(
+    "CC BY-SA 3.0" to "https://creativecommons.org/licenses/by-sa/3.0/",
+    "CC BY-SA 4.0" to "https://creativecommons.org/licenses/by-sa/4.0/",
+    "CC BY 4.0" to "https://creativecommons.org/licenses/by/4.0/",
+    "CC0" to "https://creativecommons.org/publicdomain/zero/1.0/",
 )
+
+/** CC0 is shown with its version, as on the license page. */
+private fun displayLicense(license: String) = if (license == "CC0") "CC0 1.0" else license
 
 enum class WordState { NOT_STARTED, LEARNING, FLUENT }
 
@@ -25,15 +44,26 @@ object PackInfo {
             .getJSONArray("audio")
         (0 until array.length()).map { i ->
             val o = array.getJSONObject(i)
-            AudioCredit(o.optString("text"), o.optString("author"), o.optString("license"), o.optString("sourceUrl"))
+            AudioCredit(o.optString("text"), o.optString("author"), o.optString("license"), o.optString("sourceUrl"),
+                o.optBoolean("excerpt"))
         }
     } catch (e: Exception) {
         emptyList()
     }
 
+    /** Group by site, then license, then author; everything alphabetical (C#: nested GroupBy/OrderBy). */
+    fun group(credits: List<AudioCredit>): List<CreditGroup> =
+        credits.groupBy { it.domain }.toSortedMap().map { (domain, byDomain) ->
+            CreditGroup(domain, byDomain.groupBy { it.license }.toSortedMap().map { (license, byLicense) ->
+                LicenseGroup(displayLicense(license), LicenseUrls[license],
+                    byLicense.groupBy { it.author }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
+                        .map { (author, list) -> author to list.sortedBy { it.text } })
+            })
+        }
+
     /**
-     * Every pack word with its recall (weakest skill, as the game uses), weakest first,
-     * so the chips read as a bar: not started, learning (grey → yellow), then fluent (green).
+     * Every pack word with its recall (weakest skill, as the game uses), most proficient first,
+     * so the chips read as a progress bar: fluent (green), learning (yellow → grey), then not started.
      */
     fun progress(pack: LanguagePack, progressStore: ProgressStore, nowMs: Long): List<WordProgress> {
         val skills = SkillStore(pack)
@@ -47,6 +77,6 @@ object PackInfo {
                 else -> WordState.LEARNING
             }
             WordProgress(item.text, r, state)
-        }.sortedWith(compareBy({ it.state.ordinal }, { it.recall }))
+        }.sortedWith(compareByDescending<WordProgress> { it.state.ordinal }.thenByDescending { it.recall })
     }
 }

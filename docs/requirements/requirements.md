@@ -154,8 +154,8 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 	* **Reset player data**: after a confirmation, deletes all progress and play logs for the language; the level returns to 1.
 	* **How to Play**: a short text screen.
 	* **About Language Pack**:
-		* Progress: every word as a coloured chip, ordered by recall so the chips read as a bar. Not started: outlined grey; learning: grey at R = 0 shading to yellow just below fluent; fluent: green. A summary line gives the counts.
-		* License and attributions, generated at build time from the language's `INDEX.csv` for the audio actually shipped, plus the word-frequency source.
+		* Progress: make a unlabeled colored chip for each word (divide the width of the screen by the number of words, no margin between chips), ordered by recall, most proficient on the left, so the chips appear as a progress bar. Not started: outlined grey; learning: grey at R = 0 shading to yellow just below fluent; fluent: green. A summary line gives the counts.
+		* "Thanks to language pack contributors": attributions generated at build time from the language's `INDEX.csv` for the audio actually shipped, plus the word-frequency source. Grouped by source site, then license (linked to the license text), then author; each author's words are a comma-separated list, each word linked to its source file. Words cut from a longer recording are marked `*` with a footnote.
 	* **About App**: app version, GPL-3.0 notice, source link.
 * URLs on the About screens are tappable and open in the browser.
 
