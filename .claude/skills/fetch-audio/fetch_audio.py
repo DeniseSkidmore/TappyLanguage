@@ -9,9 +9,12 @@ Usage: python -I -X utf8 fetch_audio.py <language-dir> [--dry-run]
 - A file the source no longer serves (HTTP 404/410) is reported as MISSING; other failures
   after retries are reported as FAILED. Neither stops the run. The app leaves out items whose
   audio is absent, so missing files simply drop out of the build.
+- HTTP 429 (rate limited) stops the whole run at once, with no retries: re-run later; files
+  already saved are skipped then, so nothing is downloaded twice.
 - Supported sources: Wikimedia Commons file pages (https://commons.wikimedia.org/wiki/File:...).
 """
 import csv
+import os
 import sys
 import time
 import urllib.error
@@ -19,9 +22,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-USER_AGENT = "audio-fetch-script/0.1 (python-urllib; low-rate batch download of CC-licensed files)"
-PAUSE_S = 3          # between requests
-RETRIES = 4          # on 429 / 5xx / network errors
+# Wikimedia User-Agent policy: name the tool, link a page describing it, and give a contact.
+# The contact address comes from the TAPPY_CONTACT environment variable (set by the user),
+# so it is sent with every request but never committed to the repo.
+TOOL_URL = "https://github.com/DeniseSkidmore/TappyLanguage/blob/main/.claude/skills/fetch-audio/SKILL.md"
+CONTACT = os.environ.get("TAPPY_CONTACT", "").strip()
+USER_AGENT = f"TappyLanguage-fetch/0.1 ({TOOL_URL}" + (f"; {CONTACT}" if CONTACT else "") + ") python-urllib"
+PAUSE_S = 5          # between requests
+RETRIES = 2          # on 5xx / network errors (429 never retries: it stops the run)
 BACKOFF_S = 30       # first backoff; doubles each retry
 
 
@@ -49,6 +57,8 @@ def fetch(url: str, dest: Path) -> str:
         except urllib.error.HTTPError as e:
             if e.code in (404, 410):
                 return "missing"
+            if e.code == 429:
+                return f"ratelimited: Retry-After {e.headers.get('Retry-After')} s"
             if e.code != 429 and e.code < 500:
                 return f"failed: HTTP {e.code}"
             retry_after = e.headers.get("Retry-After")
@@ -69,6 +79,9 @@ def main() -> int:
     dry_run = "--dry-run" in sys.argv
     if len(args) != 1:
         print(__doc__)
+        return 2
+    if not CONTACT and not dry_run:
+        print("TAPPY_CONTACT is not set: Wikimedia asks for a contact address. Set it, then re-run.")
         return 2
     lang_dir = Path(args[0])
     index = lang_dir / "INDEX.csv"
@@ -100,6 +113,9 @@ def main() -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"fetch {rel}")
         status = fetch(url, dest)
+        if status.startswith("ratelimited"):
+            print(f"STOPPED: rate limited at {rel} ({status}). Re-run later; saved files are kept.")
+            break
         if status == "ok":
             results["ok"].append(rel)
         elif status == "missing":
