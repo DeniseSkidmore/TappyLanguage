@@ -120,37 +120,23 @@ class LevelPlanner(
         val pairs = pool.flatMap { item -> unlockedKeys(item).map { item to it } }
         val targets = mutableListOf<SkillKey>()
         var plannedMs = 0.0
-        var previous: String? = null
-        // Steps 1–4: weighted draw over (word, skill) pairs, no back-to-back word repeat.
+        // Steps 1–4: independent weighted draws over (word, skill) pairs; repeats allowed.
         while (plannedMs < duration && pairs.isNotEmpty()) {
-            val choices = pairs.filter { it.first.key != previous }.ifEmpty { pairs }
-            val (item, key) = weighted(choices) { pickWeight(it.second, nowMs) }
+            val key = weighted(pairs) { pickWeight(it.second, nowMs) }.second
             targets += key
             plannedMs += store.getOrCreate(key).latencyAvgMs
-            previous = item.key
         }
         pool.firstOrNull { isNew(it) }?.let { ensureMinPlays(targets, it, nowMs) }
         val established = pool.filterNot { isNew(it) }.map { it.key }.toSet()
         return LevelPlan(level, pool, targets, established)
     }
 
-    /** §8 step 5: the new word gets at least NEW_WORD_MIN_PLAYS targets, avoiding back-to-back where possible. */
+    /** §8 step 5: the new word gets at least NEW_WORD_MIN_PLAYS targets, replacing random other slots. */
     private fun ensureMinPlays(targets: MutableList<SkillKey>, newItem: Item, nowMs: Long) {
-        fun isNewAt(i: Int) = i in targets.indices && targets[i].itemKey == newItem.key
-        val needed = min(Params.NEW_WORD_MIN_PLAYS, targets.size) - targets.indices.count { isNewAt(it) }
+        val needed = min(Params.NEW_WORD_MIN_PLAYS, targets.size) - targets.count { it.itemKey == newItem.key }
         if (needed <= 0) return
-        val candidates = targets.indices.filterNot { isNewAt(it) }.shuffled(random)
-        var left = needed
-        // Pass 1 replaces only slots with no new-word neighbour (checked live); pass 2 fills whatever remains.
-        for (spacedOnly in listOf(true, false)) {
-            for (i in candidates) {
-                if (left == 0) return
-                if (isNewAt(i)) continue
-                if (spacedOnly && (isNewAt(i - 1) || isNewAt(i + 1))) continue
-                targets[i] = pickSkill(newItem, nowMs)
-                left--
-            }
-        }
+        targets.indices.filter { targets[it].itemKey != newItem.key }.shuffled(random).take(needed)
+            .forEach { targets[it] = pickSkill(newItem, nowMs) }
     }
 
     /**

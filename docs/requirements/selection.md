@@ -119,14 +119,14 @@ pool        = the pool_size played words with the highest word_recall (fluent in
 - After a break, many words decay at once. The session-start level (§9) lowers the level up front, so the pool narrows to the best-known words.
 
 **Targets**
-1. Pick a pool word at random (uniform), but not the previous target unless the pool has one word.
+1. Pick a pool word at random (uniform). Each draw is independent, so the same word may come twice in a row.
 	1. If a phrase is selected, the words of the phrase will be the targets selected in that order.  The whole phrase will be finished even if this exceeds planned_time_ms.
 2. Pick its skill (combination × case) with weight `(1 − predicted_recall) + 0.05` over unlocked skills, so the weakest is played most.
 3. Add that skill's `latency_avg_ms` to `planned_time_ms`.
 4. Repeat until `planned_time_ms` reaches `level_duration_ms`, which runs linearly from 100 s at level 1 to 300 s at level 5 (`100 s + 50 s × (level_number − 1)`), then stays at 300 s.
-5. The new word, if any, gets at least `new_word_min_plays` = 5 targets: if the draw gave it fewer, replace randomly chosen other targets with it (never back to back where avoidable).
+5. The new word, if any, gets at least `new_word_min_plays` = 5 targets: if the draw gave it fewer, replace randomly chosen other targets with it.
 
-Step 1 picks words uniformly, but step 2's weights are per skill. Taken together, a word's chance follows its skills' weights: a fluent word (R 0.95, weight 0.10) still comes up sometimes, a new word (R 0, weight 1.05) about 10 times as often. *(Implementation: draw over all (word, skill) pairs in the pool with these weights, excluding the previous word.)* Example: pool of 10, 9 learning words at R ≈ 0.5 plus 1 new word: the new word gets about 18% of picks; with 9 fluent words, about 55%.
+Step 1 picks words uniformly, but step 2's weights are per skill. Taken together, a word's chance follows its skills' weights: a fluent word (R 0.95, weight 0.10) still comes up sometimes, a new word (R 0, weight 1.05) about 10 times as often. *(Implementation: draw over all (word, skill) pairs in the pool with these weights.)* Example: pool of 10, 9 learning words at R ≈ 0.5 plus 1 new word: the new word gets about 18% of picks; with 9 fluent words, about 55%.
 
 Check, level 1: pool = 1 new word, starting latency 10 s, 100 s budget: 10 targets, "one word ten times". Fall time starts at 20 s.
 
@@ -217,4 +217,4 @@ xychart-beta
 - Forgetting depends on clock time since the last success, not on session count or length, so 3 levels a day and 40 levels a day use the same curves.
 - Session length changes how many plays each word gets. A long session pushes `success_avg` up quickly (graph C) but adds little stability (§5), because recall stays near 1 during massed play. Stability grows when the player comes back after a gap and still hits.
 - Established schedules (Anki, FSRS) aim to show an item again when recall drops to about 0.9: for a new word that is about 2.4 hours (graph B), then days. Our pool does something similar without due dates: as a word's recall rises its pick weight falls, and as recall decays the weight rises again.
-- The round 1 "freshness" penalty (and its τ) is dropped: uniform random picks with no back-to-back repeats do the same job more simply.
+- The round 1 "freshness" penalty (and its τ) is dropped: weighted random picks do the same job more simply. (A later no-back-to-back-repeat rule was also dropped after play-testing: with a two-word pool it made level 2 strictly alternate.)

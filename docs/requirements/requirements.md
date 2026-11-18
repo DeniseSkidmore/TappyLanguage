@@ -111,7 +111,7 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * At most 1 new word (no success yet) in the pool, played at least 5 times per level so it is learned by repetition. A forgotten word is not "new"; its low R ranks it.
 * **Letter case**: learning-language targets appear both as written and in ALL CAPS (e.g. Greek signs), tracked as separate skills and mixed from level 1, so both forms are learned together while repeats are high.
 * New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
-* **Targets** are drawn from the pool (no back-to-back repeat), weighted toward low R so fluent words still appear sometimes, until their expected tap times add up to the level length. Small pools therefore repeat words more.
+* **Targets** are drawn from the pool independently (the same word may come twice in a row), weighted toward low R so fluent words still appear sometimes, until their expected tap times add up to the level length. Small pools therefore repeat words more.
 * Distractors are drawn uniformly at random from the rest of the pool, with no recall rule or weights, so every target gets the same number: up to 3 (at most 4 words on screen), fewer only when the pool is smaller.
 * A phrase is eligible only when all its words are learning or fluent.
 

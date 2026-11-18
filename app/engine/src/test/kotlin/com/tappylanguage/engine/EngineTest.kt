@@ -164,11 +164,11 @@ class LevelPlannerTest {
         counts.values.forEach { assertTrue(it in 1650..1950, "count $it") }
     }
 
-    @Test fun `no back-to-back repeats when the pool has several words`() {
+    @Test fun `back-to-back repeats are allowed (independent draws)`() {
         val store = SkillStore(pack)
         known(store, 0.5, "ναι", "όχι", "και")
         val plan = LevelPlanner(pack, store, Random(6)).plan(3, T0)
-        plan.targets.zipWithNext().forEach { (a, b) -> assertTrue(a.itemKey != b.itemKey) }
+        assertTrue(plan.targets.zipWithNext().any { (a, b) -> a.itemKey == b.itemKey })
     }
 
     @Test fun `level duration runs 100 s to 300 s over levels 1 to 5`() {
