@@ -140,13 +140,28 @@ class LevelPlannerTest {
         assertEquals(setOf(TextForms.matchKey("ναι"), TextForms.matchKey("όχι")), plan.establishedKeys)
     }
 
-    @Test fun `with no qualifying distractor the best-known played words are used`() {
+    @Test fun `distractors are the other pool words whatever their recall`() {
         val store = SkillStore(pack)
-        known(store, 0.3, "ναι")
-        known(store, 0.2, "όχι")
+        known(store, 0.95, "ναι")  // fluent target
+        known(store, 0.2, "όχι")   // weak distractor still qualifies
         val planner = LevelPlanner(pack, store, Random(7))
-        // target ναι (0.3) needs distractors >= 0.65: none qualify, so the played όχι falls back in; και is unplayed
-        assertEquals(listOf(TextForms.matchKey("όχι")), planner.distractors(ll("ναι"), T0).map { it.itemKey })
+        val pool = planner.pool(3, T0) // ναι, όχι + new και
+        val picked = planner.distractors(ll("ναι"), pool).map { it.itemKey }.toSet()
+        assertEquals(setOf(TextForms.matchKey("όχι"), TextForms.matchKey("και")), picked)
+    }
+
+    @Test fun `every target gets the same number of distractors, uniformly drawn`() {
+        val big = pack("α", "β", "γ", "δ", "ε", "ζ")
+        val planner = LevelPlanner(big, SkillStore(big), Random(8))
+        val target = SkillKey(big.items[0].key, Combination.LEARNING_LEARNING, TargetCase.AS_WRITTEN)
+        val counts = mutableMapOf<String, Int>()
+        repeat(3000) {
+            val d = planner.distractors(target, big.items)
+            assertEquals(Params.MAX_ON_SCREEN - 1, d.size)
+            d.forEach { counts.merge(it.itemKey, 1, Int::plus) }
+        }
+        // 5 candidates, 3 picks each draw: expect 1800 apiece
+        counts.values.forEach { assertTrue(it in 1650..1950, "count $it") }
     }
 
     @Test fun `no back-to-back repeats when the pool has several words`() {
@@ -173,16 +188,10 @@ class LevelPlannerTest {
         assertEquals(1, planner.pool(3, T0).count { planner.isNew(it) })
     }
 
-    @Test fun `distractor threshold rises as the target weakens`() {
-        val planner = LevelPlanner(pack, SkillStore(pack))
-        assertEquals(0.5, planner.distractorMinRecall(0.0), 1e-9)
-        assertEquals(0.9, planner.distractorMinRecall(0.8), 1e-9)
-    }
-
     @Test fun `no distractors in level 1`() {
         val planner = LevelPlanner(pack, SkillStore(pack), Random(3))
-        val target = planner.plan(1, T0).targets.first()
-        assertTrue(planner.distractors(target, T0).isEmpty())
+        val plan = planner.plan(1, T0)
+        assertTrue(planner.distractors(plan.targets.first(), plan.pool).isEmpty())
     }
 
     @Test fun `level up above 90 percent, stay while established words hold, else down 1 (thread 22 examples)`() {

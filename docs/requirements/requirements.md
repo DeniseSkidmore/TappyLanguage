@@ -39,7 +39,7 @@ Language data the app needs:
 Constraints:
 * Audio must be recordings of human speakers, not AI-generated.
 * Greek: no native speaker is available, so only existing recordings are used.
-* English: a native English speaker is available, so missing English audio can be recorded by us. Each recording is indexed in INDEX.csv with its speaker as author and an open license (CC BY-SA or CC0, TBD).
+* English: a native English speaker is available, so missing English audio can be recorded by us. Each recording is indexed in INDEX.csv with its speaker as author, licensed CC0.
 * A word, sentence or phrase is playable only if it has a recording in the prompt language. (A text-only mode may be added later.)
 * An item whose audio file is missing at build time (e.g. the source no longer serves it) is left out of the build entirely.
 * Where no single-word recording exists, a word may be taken from a slice of a longer recording.
@@ -75,8 +75,8 @@ known-known is excluded (teaches nothing).
 
 Progression order:
 1. **learning-learning** first: reading Greek teaches pronunciation, so later the learner can say a Greek word from its spelling.
-2. **known-learning** next: meaning → Greek.
-3. **learning-known** last, as review: reverses skills already learned.
+2. **known-learning** and **learning-known** next, with equal priority: meaning ↔ Greek.
+   Prototype: learning-known is built first, because it needs only Greek audio and English text (a pair file, no English language pack); known-learning follows once English audio exists.
 
 Combinations unlock **per word**, soon after initial success: a word's next combination unlocks once the previous one reaches "learning" (not fluent).
 When a word is selected, its combination is chosen with higher probability for the combination with the lowest success for that word.
@@ -112,7 +112,7 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * **Letter case**: learning-language targets appear both as written and in ALL CAPS (e.g. Greek signs), tracked as separate skills and mixed from level 1, so both forms are learned together while repeats are high.
 * New words are preferred when they are short, frequent, in the selected phrasebook, and share letters with words already learning or fluent.
 * **Targets** are drawn from the pool (no back-to-back repeat), weighted toward low R so fluent words still appear sometimes, until their expected tap times add up to the level length. Small pools therefore repeat words more.
-* Distractors have higher R than the target; the weaker the target, the better known its distractors. If none qualify, the best-known other played words are used.
+* Distractors are drawn uniformly at random from the rest of the pool, with no recall rule or weights, so every target gets the same number: up to 3 (at most 4 words on screen), fewer only when the pool is smaller.
 * A phrase is eligible only when all its words are learning or fluent.
 
 ## Game play
@@ -129,12 +129,13 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * After failure due to incorrect target selection, flash the distractor red and continue main game loop waiting for success or failure due to word falling off edge of screen.
 * A tap on empty space (no word) makes the words on screen fall 5% slower for the rest of that prompt. It changes no history.
 * Word touch targets are slightly larger than the drawn text (fixed margin, not adjusted during play).
+* Prompt audio is played with its leading silence skipped (keeping about 50 ms before the speech) and its volume normalised, so all clips start promptly and sound equally loud. This is done at playback; the audio files are not modified.
 * The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen. The prompt audio plays at the start of the group (not when the target appears); tap latency counts from when the target appears.
 * The game screen has a Menu button; play is paused while the menu shows (see Menu).
 
 ## Levels and difficulty
 * Level 1 has 1 target word played 10 times. It assumes no prior knowledge: with only the right answer on screen, the association is learned from context alone.
-* Once targets have prior success, the screen shows distractors as well as the target.
+* From level 2 the screen shows distractors as well as the target.
 * Level length grows linearly from about 100 seconds at level 1 to 5 minutes at level 5, then stays at 5 minutes. The level number sets the pool size; a higher level means more distinct words and fewer repeats per word.
 * Each target's fall speed comes from its own tap latency, so the average tap lands about halfway down the screen; distractors on screen with it fall at the same speed. Speed is independent of the level number.
 * At most 4 words on screen at once, to start; may later depend on level and screen size.

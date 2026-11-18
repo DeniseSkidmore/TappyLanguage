@@ -146,9 +146,9 @@ fall_time_ms = clamp(latency_avg_ms / target_travel_share, 3,000, 60,000)
 
 **Distractors** (words on screen that are not the target)
 ```
-distractor_min_recall = target_recall + (1 − target_recall) × 0.5
+distractors = uniform random sample of (pool − target), size min(max_on_screen − 1, pool size − 1)
 ```
-A weak target gets only well-known distractors (target 0 → distractors ≥ 0.5; target 0.8 → ≥ 0.9). If none qualify, the best-known other played words are used instead. Level 1 has none (no other word has been played yet).
+No recall rule and no weights, so every target gets the same number of distractors. Level 1 has none (the pool is one word). Earlier drafts gave weak targets only well-known distractors (min recall = target + (1 − target) × 0.5); dropped after play-testing because well-known targets got too few distractors.
 
 **Phrases:** eligible only when every word in the phrase is learning or fluent in the phrase's combination.
 

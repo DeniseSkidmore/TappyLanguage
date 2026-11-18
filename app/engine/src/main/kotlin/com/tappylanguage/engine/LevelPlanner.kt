@@ -153,23 +153,13 @@ class LevelPlanner(
         }
     }
 
-    /** §8: weaker targets get better-known distractors. */
-    fun distractorMinRecall(targetRecall: Double): Double =
-        targetRecall + (1 - targetRecall) * Params.DISTRACTOR_GAP
-
     /**
-     * §8: words above the threshold, at random. If none qualify, the best-known other played words
-     * instead (none only while no other word has been played, e.g. level 1).
+     * §8: the other pool words, uniformly at random (no recall rule, no weights), up to `max`;
+     * so every target gets the same count, min(max, pool size - 1). Level 1 (pool of 1) has none.
      */
-    fun distractors(target: SkillKey, nowMs: Long, max: Int = Params.MAX_ON_SCREEN - 1): List<SkillKey> {
-        val minRecall = distractorMinRecall(recall(target, nowMs))
-        val others = pack.items.filter { it.key != target.itemKey }
-        val qualifying = others.filter { wordRecall(it, nowMs) >= minRecall }.shuffled(random).take(max)
-        val chosen = qualifying.ifEmpty {
-            others.filter { wasPlayed(it) }.sortedByDescending { wordRecall(it, nowMs) }.take(max)
-        }
-        return chosen.map { SkillKey(it.key, target.combination, TargetCase.entries.random(random)) }
-    }
+    fun distractors(target: SkillKey, pool: List<Item>, max: Int = Params.MAX_ON_SCREEN - 1): List<SkillKey> =
+        pool.filter { it.key != target.itemKey }.shuffled(random).take(max)
+            .map { SkillKey(it.key, target.combination, TargetCase.entries.random(random)) }
 
     /**
      * §9: up 1 above 90% overall; else stay while established words are hit at least 80%

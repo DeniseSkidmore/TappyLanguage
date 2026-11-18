@@ -13,8 +13,8 @@
       "Bash(git log *)",
       "Bash(git show *)",
       "Bash(bash .claude/hooks/py .claude/hooks/session_digest.py *)",
-      "Edit(.data/language/greek/INDEX.csv)",
-      "Edit(.data/language/greek/**)",
+      "Edit(./data/language/greek/INDEX.csv)",
+      "Edit(./data/language/greek/**)",
       "Write(./app/**)",
       "Edit(./app/**)"
     ],

@@ -36,7 +36,6 @@ object Params {
     const val MIN_FALL_MS = 3_000.0
     const val MAX_FALL_MS = 60_000.0
     const val MAX_ON_SCREEN = 4
-    const val DISTRACTOR_GAP = 0.5
     const val FIRST_LEVEL_DURATION_MS = 100_000L
     const val FULL_LEVEL_DURATION_MS = 300_000L
     const val FULL_DURATION_FROM_LEVEL = 5

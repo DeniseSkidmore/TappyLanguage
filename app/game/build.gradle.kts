@@ -79,7 +79,7 @@ abstract class BuildPackTask : DefaultTask() {
 val audioDir = "../../data/language/greek/commons"
 
 val buildPack = tasks.register<BuildPackTask>("buildPack") {
-    sourcePack.set(layout.projectDirectory.file("src/pack/el-prototype.json"))
+    sourcePack.set(layout.projectDirectory.file("../../data/language/greek/packs/el-prototype.json"))
     index.set(layout.projectDirectory.file("../../data/language/greek/INDEX.csv"))
     audioFiles.from(fileTree(audioDir)) // empty (not an error) on a machine without the audio
 }
@@ -120,7 +120,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("ogg", "wav") // MediaPlayer needs uncompressed assets for openFd
+        noCompress += listOf("ogg", "oga", "wav") // AudioPlayer/ClipDecoder use openFd, which needs uncompressed assets
     }
 }
 

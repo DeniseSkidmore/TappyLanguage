@@ -47,5 +47,7 @@ docs/conversation.md
 data/**
 !data/**/
 !data/**/INDEX.csv
+# Pack sources (our own text data, CC BY-SA) are committed
+!data/language/*/packs/*.json
 
 /docs/notes/**

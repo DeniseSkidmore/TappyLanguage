@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         audio = AudioPlayer(assets)
+        audio.preload(pack.items.mapNotNull { it.audioFile })
         progressStore = ProgressStore(File(filesDir, "progress-el.json"))
         playLog = PlayLog(File(filesDir, "playlogs"))
         setContent {

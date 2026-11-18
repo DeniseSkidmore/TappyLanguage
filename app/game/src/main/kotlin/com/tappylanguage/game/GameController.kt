@@ -230,7 +230,7 @@ class GameController(
             FallingWord(nextId++, key, TextForms.display(item, key.targetCase, pack.languageCode), true,
                 random.nextFloat(), 0L, fallMs),
         )
-        planner.distractors(key, now).forEach { d ->
+        planner.distractors(key, plan.pool).forEach { d ->
             val dItem = pack.item(d.itemKey) ?: return@forEach
             words += FallingWord(nextId++, d, TextForms.display(dItem, d.targetCase, pack.languageCode), false,
                 random.nextFloat(), 0L, fallMs)
