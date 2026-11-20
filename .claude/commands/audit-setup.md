@@ -4,8 +4,8 @@ allowed-tools: Read, Glob, Grep, Bash(git status*), Bash(git diff *), Bash(git l
 ---
 Read-only audit. Do not edit any file.
 
-1. Read CLAUDE.md, CLAUDE.local.md, .gitignore, and everything under .claude/
-   (skip metrics/ contents beyond a line count).
+1. Read CLAUDE.md, CLAUDE.local.md, .gitignore, .claude/settings.json, .claude/settings.local.json, everything under .claude/skills/fetch-audio.
+2. Check conversation context for the language to be editing.   Read the INDEX.csv file and list the other files (paths only) in data\language\{language}.
 2. Check that local/secret files are gitignored (`git check-ignore -v`) and
    that `git status` is clean or explain what is not.
 3. Test hooks and commands with no-op inputs only:

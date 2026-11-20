@@ -130,7 +130,8 @@ Draft; rules will be tuned by playing. Equations, with comparisons to published 
 * A tap on empty space (no word) makes the words on screen fall 5% slower for the rest of that prompt. It changes no history.
 * Word touch targets are slightly larger than the drawn text (fixed margin, not adjusted during play).
 * Prompt audio is played with its leading silence skipped (keeping about 50 ms before the speech) and its volume normalised, so all clips start promptly and sound equally loud. This is done at playback; the audio files are not modified.
-* The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen. The prompt audio plays at the start of the group (not when the target appears); tap latency counts from when the target appears.
+* The target and its distractors start falling one at a time in random order, at random horizontal positions that keep each word fully on screen. The prompt audio plays at the start of the group (not when the target appears), 0.5 s after the previous prompt ends; tap latency counts from when the target appears.
+* On resume from pause, the current prompt's audio plays again after 0.5 s.
 * The game screen has a Menu button; play is paused while the menu shows (see Menu).
 
 ## Levels and difficulty

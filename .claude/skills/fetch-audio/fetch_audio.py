@@ -4,74 +4,88 @@ Usage: python -I -X utf8 fetch_audio.py <language-dir> [--dry-run]
   e.g. python -I -X utf8 .claude/skills/fetch-audio/fetch_audio.py data/language/greek
 
 - Reads <language-dir>/INDEX.csv (path,source_url,author,license,retrieved,start_ms,end_ms).
-- Skips files already present. Downloads the rest, one at a time, with a pause between requests.
+- Skips files already present. Resolves direct upload URLs with batched Commons API queries
+  (50 titles per request, cached in <language-dir>/cache/commons_urls.json), then downloads
+  one file at a time, PAUSE_S apart.
 - Slice rows (start_ms/end_ms) share their source file; the whole file is downloaded once.
 - A file the source no longer serves (HTTP 404/410) is reported as MISSING; other failures
   after retries are reported as FAILED. Neither stops the run. The app leaves out items whose
   audio is absent, so missing files simply drop out of the build.
 - HTTP 429 (rate limited) stops the whole run at once, with no retries: re-run later; files
   already saved are skipped then, so nothing is downloaded twice.
+- Connection loss (laptop undocked, wifi switch, sleep) is waited out, up to OFFLINE_MAX_S,
+  without using a retry; then the run stops cleanly. See tappylib.polite_http.
 - Supported sources: Wikimedia Commons file pages (https://commons.wikimedia.org/wiki/File:...).
+- Needs the tappy conda env ($TAPPY_PYTHON), which provides tappylib.
 """
 import csv
-import os
+import json
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
-# Wikimedia User-Agent policy: name the tool, link a page describing it, and give a contact.
-# The contact address comes from the TAPPY_CONTACT environment variable (set by the user),
-# so it is sent with every request but never committed to the repo.
-TOOL_URL = "https://github.com/DeniseSkidmore/TappyLanguage/blob/main/.claude/skills/fetch-audio/SKILL.md"
-CONTACT = os.environ.get("TAPPY_CONTACT", "").strip()
-USER_AGENT = f"TappyLanguage-fetch/0.1 ({TOOL_URL}" + (f"; {CONTACT}" if CONTACT else "") + ") python-urllib"
-PAUSE_S = 5          # between requests
-RETRIES = 2          # on 5xx / network errors (429 never retries: it stops the run)
-BACKOFF_S = 30       # first backoff; doubles each retry
+from tappylib.polite_http import OFFLINE_MAX_S, PAUSE_S, contact, request, user_agent
+
+USER_AGENT = user_agent("TappyLanguage-fetch/0.1")
+API_URL = "https://commons.wikimedia.org/w/api.php"
+BATCH = 50           # titles per API request (API limit for normal clients)
 
 
-def download_url(source_url: str) -> str:
-    """Turn a source page URL into a direct file URL."""
+def commons_title(source_url: str) -> str:
+    """'File:<name>' for a Commons file page URL; ValueError for other sources."""
     parsed = urllib.parse.urlparse(source_url)
     if parsed.netloc == "commons.wikimedia.org" and parsed.path.startswith("/wiki/File:"):
-        name = urllib.parse.unquote(parsed.path[len("/wiki/File:"):])
-        return "https://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(name)
+        return "File:" + urllib.parse.unquote(parsed.path[len("/wiki/File:"):]).replace("_", " ")
     raise ValueError(f"unsupported source: {source_url}")
 
 
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def save_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".part")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(path)
+
+
+def resolve_urls(titles: list[str], cache_path: Path) -> str | None:
+    """Fill the cache {title: direct upload URL or None if absent} with batched imageinfo queries.
+
+    Saves after every request. Returns None, or a request() status that stops the run.
+    """
+    cache = load_json(cache_path)
+    todo = [t for t in titles if t not in cache]
+    for i in range(0, len(todo), BATCH):
+        if i:
+            time.sleep(PAUSE_S)
+        batch = todo[i:i + BATCH]
+        query = urllib.parse.urlencode({"action": "query", "format": "json", "formatversion": "2",
+                                        "prop": "imageinfo", "iiprop": "url", "titles": "|".join(batch)})
+        print(f"resolve {len(batch)} URLs (API)", flush=True)
+        status, body = request(f"{API_URL}?{query}", USER_AGENT)
+        if status != "ok":
+            return status
+        q = json.loads(body.decode("utf-8")).get("query", {})
+        alias = {n["to"]: n["from"] for n in q.get("normalized", [])}
+        for page in q.get("pages", []):
+            title = alias.get(page["title"], page["title"])
+            info = page.get("imageinfo")
+            cache[title] = info[0]["url"] if info and not page.get("missing") else None
+        save_json(cache_path, cache)
+    return None
+
+
 def fetch(url: str, dest: Path) -> str:
-    """Return 'ok', 'missing' or 'failed: <reason>'."""
-    wait = BACKOFF_S
-    for attempt in range(RETRIES + 1):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                data = resp.read()
-            tmp = dest.with_suffix(dest.suffix + ".part")
-            tmp.write_bytes(data)
-            tmp.replace(dest)
-            return "ok"
-        except urllib.error.HTTPError as e:
-            if e.code in (404, 410):
-                return "missing"
-            if e.code == 429:
-                return f"ratelimited: Retry-After {e.headers.get('Retry-After')} s"
-            if e.code != 429 and e.code < 500:
-                return f"failed: HTTP {e.code}"
-            retry_after = e.headers.get("Retry-After")
-            reason = f"HTTP {e.code}"
-            if retry_after and retry_after.isdigit():
-                wait = max(wait, int(retry_after))
-        except (urllib.error.URLError, TimeoutError) as e:
-            reason = str(e)
-        if attempt < RETRIES:
-            print(f"    retry in {wait} s ({reason})")
-            time.sleep(wait)
-            wait *= 2
-    return f"failed: {reason}"
+    """Download url to dest. Returns a request() status."""
+    status, data = request(url, USER_AGENT)
+    if status == "ok":
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        tmp.write_bytes(data)
+        tmp.replace(dest)
+    return status
 
 
 def main() -> int:
@@ -80,7 +94,7 @@ def main() -> int:
     if len(args) != 1:
         print(__doc__)
         return 2
-    if not CONTACT and not dry_run:
+    if not contact() and not dry_run:
         print("TAPPY_CONTACT is not set: Wikimedia asks for a contact address. Set it, then re-run.")
         return 2
     lang_dir = Path(args[0])
@@ -89,7 +103,7 @@ def main() -> int:
         rows = list(csv.DictReader(f))
 
     seen, results = set(), {"present": [], "ok": [], "missing": [], "failed": []}
-    first = True
+    todo = []  # (rel, title) of files not yet on disk
     for row in rows:
         rel = row["path"]
         if rel in seen:
@@ -100,21 +114,44 @@ def main() -> int:
             results["present"].append(rel)
             continue
         try:
-            url = download_url(row["source_url"])
+            todo.append((rel, commons_title(row["source_url"])))
         except ValueError as e:
             results["failed"].append(f"{rel} ({e})")
-            continue
+
+    # Direct upload URLs: batched API lookups, cached, so each file costs one request to upload.wikimedia.org.
+    cache_path = lang_dir / "cache" / "commons_urls.json"
+    first = True
+    if todo and not dry_run:
+        uncached = [t for _, t in todo if t not in load_json(cache_path)]
+        if uncached:
+            status = resolve_urls(uncached, cache_path)
+            first = False
+            if status:
+                print(f"STOPPED: URL lookup {status}. Re-run later; cached URLs are kept.")
+                return 1
+    urls = load_json(cache_path)
+
+    for rel, title in todo:
+        dest = lang_dir / rel
+        url = urls.get(title)
         if dry_run:
-            print(f"would fetch {rel} <- {url}")
+            print(f"would fetch {rel} <- {url or title + ' (URL lookup pending)'}")
+            continue
+        if url is None:
+            results["missing"].append(rel)
             continue
         if not first:
             time.sleep(PAUSE_S)
         first = False
         dest.parent.mkdir(parents=True, exist_ok=True)
-        print(f"fetch {rel}")
+        print(f"fetch {rel}", flush=True)
         status = fetch(url, dest)
         if status.startswith("ratelimited"):
             print(f"STOPPED: rate limited at {rel} ({status}). Re-run later; saved files are kept.")
+            break
+        if status == "offline":
+            print(f"STOPPED: offline for over {OFFLINE_MAX_S // 60} min at {rel}. Re-run when online; "
+                  "saved files are kept.")
             break
         if status == "ok":
             results["ok"].append(rel)

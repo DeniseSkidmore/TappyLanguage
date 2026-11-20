@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools==84.2.1"]  # same pin as environment.yml (pip builds in isolation)
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tappylib"
+version = "0.1.0"
+description = "Shared Python helpers for TappyLanguage tools and skills (installed editable into the tappy conda env)."
+requires-python = ">=3.13"
+license = "GPL-3.0-or-later"
+
+[tool.setuptools]
+packages = ["tappylib"]

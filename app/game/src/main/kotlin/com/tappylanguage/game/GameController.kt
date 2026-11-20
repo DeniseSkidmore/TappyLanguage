@@ -79,6 +79,8 @@ class GameController(
     private val promptWrongSkills = mutableListOf<SkillKey>()
     private val pendingEntries = mutableListOf<FallingWord>() // waiting to enter, in order
     private var nextEntryMs = 0L
+    private var promptAudio: String? = null // current prompt's audio file
+    private var audioAtMs: Long? = null   // when the prompt audio is due (null = already played)
 
     private var phaseEndsMs = 0L
     private var pausedFrom = Phase.PLAYING
@@ -99,6 +101,7 @@ class GameController(
             Phase.PLAYING -> {
                 if (!promptActive) spawnNext(now)
                 else {
+                    playAudioIfDue(now)
                     enterPending(now)
                     falling.firstOrNull { it.isTarget }?.let { if (now - it.startMs >= it.fallMs) timeout(it, now) }
                     falling.removeAll { !it.isTarget && now - it.startMs >= it.fallMs } // distractors just leave
@@ -159,6 +162,8 @@ class GameController(
             promptStartMs += idle
             nextEntryMs += idle
             phaseEndsMs += idle
+            // Replay the prompt after resume: the player may have forgotten it while paused.
+            if (promptActive) audioAtMs = audioAtMs?.plus(idle) ?: (now + RESUME_REPLAY_DELAY_MS)
             phase = pausedFrom
         } else {
             pausedFrom = phase
@@ -238,12 +243,21 @@ class GameController(
         falling.clear()
         pendingEntries.clear()
         pendingEntries += words.shuffled(random)
-        nextEntryMs = now
+        // Short gap after the previous prompt; then the audio plays as the group starts entering,
+        // so its timing doesn't reveal which word is the target.
+        nextEntryMs = now + PROMPT_DELAY_MS
+        promptAudio = item.audioFile
+        audioAtMs = nextEntryMs
         promptTaps = 0
         promptWrongSkills.clear()
         promptActive = true
-        audio.play(item.audioFile) // at the start of the group, so timing doesn't reveal which word is the target
-        enterPending(now)
+    }
+
+    private fun playAudioIfDue(now: Long) {
+        val due = audioAtMs ?: return
+        if (now < due) return
+        audioAtMs = null
+        audio.play(promptAudio)
     }
 
     private fun enterPending(now: Long) {
@@ -270,6 +284,7 @@ class GameController(
         falling.clear()
         pendingEntries.clear()
         promptActive = false
+        audioAtMs = null
     }
 
     private fun endLevel(now: Long) {
@@ -308,5 +323,7 @@ class GameController(
         const val BETWEEN_LEVELS_MS = 3_000L
         const val MAX_ENTRY_GAP_MS = 1_000L
         const val ENTRY_GAP_DIVISOR = 10L
+        const val PROMPT_DELAY_MS = 500L         // gap before each prompt's audio and first word
+        const val RESUME_REPLAY_DELAY_MS = 500L  // after resume, replay the prompt audio after this
     }
 }

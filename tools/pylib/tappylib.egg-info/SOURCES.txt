@@ -1,0 +1,7 @@
+pyproject.toml
+tappylib/__init__.py
+tappylib/polite_http.py
+tappylib.egg-info/PKG-INFO
+tappylib.egg-info/SOURCES.txt
+tappylib.egg-info/dependency_links.txt
+tappylib.egg-info/top_level.txt

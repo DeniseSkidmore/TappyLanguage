@@ -47,7 +47,8 @@ docs/conversation.md
 data/**
 !data/**/
 !data/**/INDEX.csv
-# Pack sources (our own text data, CC BY-SA) are committed
+# Pack sources (our own text data, CC BY-SA) and the data directives are committed
 !data/language/*/packs/*.json
+!data/CLAUDE.md
 
 /docs/notes/**

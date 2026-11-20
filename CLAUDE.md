@@ -1,36 +1,38 @@
 # Project CLAUDE directives
 
 ## Project Overview
-Project is an Android application for learning (human) languages.  Initial language will be Greek, but will be designed to accept additional data files for additional languages in the future.  Gameplay will use spaced repetition to determine which words are "in play", speak a word aloud, then move words down the screen until the user taps the word that was said.  There will be a few modes.
+Project is an Android application for learning (human) languages.  Initial language will be Greek, for English speaking learners, but will be designed to accept additional language packs and language pair files for additional languages in the future.  Gameplay will use spaced repetition to determine which words are "in play", speak a word aloud, then move words down the screen until the user taps the word that was said.  
 
 ## Current project phase
 Protyping
 
 ## Requirements
-When we get to requirements analysis phase, requirements are in the docs/requirements folder.
+Requirements are in the docs/requirements folder.
 
 ## Third-party data
-- Language data: `data/language/<language>/<source>/` (e.g. `data/language/greek/lingualibre/`). GUI image data: `data/graphics/<source>/`.
-- Each of `data/language/<language>/` and `data/graphics/` keeps an `INDEX.csv`, one row per file: `path,source_url,author,license,retrieved`. Rows for audio slices also carry `start_ms,end_ms`.
-- Never use a source whose terms restrict rehosting or redistribution.
-- Binary data is not committed during this phase (gitignored); only `INDEX.csv` files are. Hosting for built language packages is decided later.
-- Releases ship a language pack per language plus a pair pack per language pair, with attributions generated from each language's `INDEX.csv`.
+- Never use a source whose terms restrict rehosting or redistribution (applies to dataset research too).
+- All other data rules (layout, INDEX.csv, caching, polite downloading): `data/CLAUDE.md`.
 
 ## Ground rules
 Propose each change and wait for my approval before editing; never widen permissions on your own; When finished, list each item as verified, blocked (why), or not attempted.
-Begin proposals with an action list tagged [Claude] / [You] / [Decide]; explanation follows.
 Bundle requests with numbered actions.
-never edit files with sed or shell
+Never edit files with sed or shell, use edit.  (Shell commands require approval, some files are allowed edit.)
+If a shell command changes the active directory, return to this repository's root afterwards or execute in a subshell.
+Project Python runs in `$TAPPY_PYTHON` (conda env `tappy`); packages are pinned in `environment.yml`; add new dependencies there.
 
-## Open items log (Claude's running context)
-`docs/open-items.md` is Claude's own working file, gitignored and not for the user to maintain. It is exempt from "propose each change": edit it freely without asking.
-- **First reply of every session (mandatory, even if the user asked something else):** before anything else, summarize the open items in a short numbered list and propose which to pick up, then handle the user's message. A SessionStart hook injects the file's contents into context; if they are not there, Read the file.
-- **During work:** add any undecided question, deferred follow-up, unverified check, or pending [You] action as it comes up. Remove an item once it is resolved or explicitly dropped. Keep entries one line each: tag, date, item, and where it came from.
-- Record final decisions in commit messages, not here; this file holds only what is still open.
-
-## Conversation file (shared)
+## Conversation file (short term context)
 `docs/conversation.md` is a shared, gitignored working file for threaded discussion. Claude may edit it without asking.
-- Claude writes proposals and questions there as numbered threads, each with an action list ([Claude] / [You] / [Decide]).
-- The user answers and approves inline, then says in chat to review the conversation file. Claude then reads it and acts on what was approved.
-- Claude deletes threads once completed or dropped, and updates ongoing ones. Lasting outcomes go into requirements, CLAUDE.md, or commit messages; undecided leftovers go to `docs/open-items.md`.
-- Chat stays short: Claude says what changed in the file and what needs the user's attention.
+- Threads are numbered for cross reference.  If a thread splits use . notation at each split, such as 12.4.2
+- Begin proposals with an action list; explanation follows.
+- Claude writes answers, proposals and questions in numbered threads, each with an action list ([Claude] / [You] / [Decide]).
+- The user answers and approves inline, then says in chat "read conversation" or a simple greeting. Claude then reads it and acts on what was approved.
+- Claude deletes threads once completed or dropped, and updates ongoing ones. Lasting outcomes go into requirements, or CLAUDE.md, user may request non-current items go to `docs/open-items.md`.
+- Chat stays short: Claude list the action item numbers completed, edited, and added.
+- User will denote new action items and approvals with `> ` which should be acted on when read.
+- When a thread gets excessivly long, create a seperate file for that thread eg: conversation-37.md so a fresh context can load just the relevant thread.  Notify user in chat when such new files are spawned.
+
+## Open items log (long term context)
+`docs/open-items.md` is a working file, gitignored and for Claude to maintain.
+- **First reply of every session (mandatory, even if the user asked something else):** if there are no active items in docs/conversation.md, before anything else, summarize the open items in a short numbered list and propose which to pick up, then handle the user's message. A SessionStart hook injects the file's contents into context; if they are not there, Read the file.
+- **During work:** add any undecided question, deferred follow-up, or unverified check. Remove an item once it is resolved or explicitly dropped. Keep entries one line each: tag, date, item, and where it came from.
+- this file holds only what is still open, not final decisions.

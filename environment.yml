@@ -1,0 +1,205 @@
+# One conda environment for all TappyLanguage Python: hooks, data scripts, forced alignment.
+# Create:  conda env create -f environment.yml
+# Update:  conda env update -f environment.yml --prune
+# Scripts reach it through TAPPY_PYTHON (machine-specific, set in .claude/settings.local.json).
+#
+# Every package is pinned, including dependencies (resolved 2026-11-19 with
+# `conda create --dry-run` and `pip install --dry-run --report` against Python 3.13.9, win-64).
+# Conda pins carry build strings, so this file is win-64 only.
+# To change a top-level version: edit it, re-run both dry runs, replace the pinned lists.
+#
+# Top-level choices (the rest are their dependencies):
+#   python 3.13.9   whisperx 3.8.6 needs >=3.10,<3.14
+#   ffmpeg 9.0.2    audio decoding for whisperx / torchaudio
+#   whisperx 3.8.6  forced alignment only (whisperx.align, Greek wav2vec2 model); no Whisper ASR model
+#   torch 2.8.0, torchaudio 2.8.0, torchvision 0.23.0   required by whisperx 3.8.6 (~=); CPU builds from PyPI
+name: tappy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13.9=h09917c8_101_cp313
+  - pip=25.2=pyh145f28c_0
+  - ffmpeg=9.0.2=gpl_h928aae7_900
+  # conda dependencies of the above
+  - aom=3.14.1=pl5321h06fc181_2
+  - bzip2=1.0.8=h0ad9c76_10
+  - ca-certificates=2026.10.23=h4c7d964_0
+  - cairo=1.18.4=h477c42c_3
+  - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
+  - font-ttf-inconsolata=3.000=h77eed37_0
+  - font-ttf-source-code-pro=2.038=h77eed37_0
+  - font-ttf-ubuntu=0.83=h77eed37_4
+  - fontconfig=2.18.4=hbf4c354_0
+  - fonts-conda-ecosystem=1=0
+  - fonts-conda-forge=1=hc364b38_1
+  - freetype=2.14.3=h57928b3_2
+  - fribidi=1.0.18=hfd05255_0
+  - gdk-pixbuf=2.44.8=h1f5b9c4_2
+  - glib=2.88.3=h3750008_0
+  - glib-tools=2.88.3=h81395b3_0
+  - graphite2=1.3.15=h5112557_1
+  - harfbuzz=14.4.0=h57928b3_1
+  - icu=78.3=h5112557_2
+  - lame=4.0=h0c5f640_1
+  - lerc=4.3.0=hd936e49_0
+  - libbrotlicommon=1.2.1=hf02afa3_1
+  - libbrotlidec=1.2.1=h84f9c24_1
+  - libbrotlienc=1.2.1=he2a975b_1
+  - libdav1d=1.5.4=h11686cb_4
+  - libdav1d7=1.5.4=h6a83c73_4
+  - libdeflate=1.26=h1a1d4e4_0
+  - libexpat=2.9.0=hac47afa_0
+  - libffi=3.5.2=h3d046cb_0
+  - libfreetype=2.14.3=h57928b3_2
+  - libfreetype6=2.14.3=hdbac1cb_2
+  - libglib=2.88.3=h7ce1215_0
+  - libharfbuzz=14.4.0=h03b5201_1
+  - libharfbuzz-devel=14.4.0=h03b5201_1
+  - libhwy=1.4.0=h2419aca_2
+  - libiconv=1.18=hc1393d2_3
+  - libintl=0.22.5=h5728263_4
+  - libintl-devel=0.22.5=h5728263_4
+  - libjpeg-turbo=3.2.1=hfd05255_0
+  - libjxl=0.12.0=h932607e_4
+  - liblzma=5.8.3=hfd05255_1
+  - libmpdec=4.0.0=hfd05255_2
+  - libogg=1.3.5=h2466b09_1
+  - libopus=1.6.1=h6a83c73_1
+  - libpng=1.6.59=hdc8cecf_0
+  - librsvg=2.62.3=h15cfe45_0
+  - libsqlite=3.54.1=hf5d6505_101
+  - libtiff=4.7.2=hef6d50c_2
+  - libusb=1.0.30=h6a83c73_1
+  - libvorbis=1.3.7=h5112557_2
+  - libvulkan-loader=1.4.357.0=h477610d_2
+  - libwebp-base=1.6.0=h4d5522a_1
+  - libxml2=2.15.4=he095d88_1
+  - libxml2-16=2.15.4=h3cfd58e_1
+  - libzlib=1.3.2=hfd05255_3
+  - mpg123=1.33.7=ha58212f_1
+  - openh264=2.6.0=h1eab103_2
+  - openssl=3.6.5=hf411b9b_0
+  - packaging=26.3=pyhc364b38_0
+  - pango=1.58.2=h13911b6_1
+  - pcre2=10.47=h8466c1e_1
+  - pixman=0.46.4=h5112557_3
+  - python_abi=3.13=9_cp313
+  - sdl2=2.32.56=h5112557_1
+  - sdl3=3.4.20=h5112557_2
+  - svt-av1=4.2.0=hac47afa_1
+  - tk=8.6.13=h967ab96_4
+  - tzdata=2026e=h5d301ff_0
+  - ucrt=10.0.26100.0=h57928b3_0
+  - vc=14.5=hda273ae_44
+  - vc14_runtime=14.51.36247=hb06f545_44
+  - vcomp14=14.51.36247=h1c3f1cb_44
+  - x264=1!164.3095=pl5321h71a6e3e_3
+  - x265=3.5=h3ee6617_4
+  - zlib=1.3.2=hfd05255_3
+  - zstd=1.5.7=h534d264_7
+  - pip:
+      # project library (editable: edits take effect without reinstalling)
+      - -e ./tools/pylib
+      # top level
+      - whisperx==3.8.6
+      - torch==2.8.0
+      - torchaudio==2.8.0
+      - torchvision==0.23.0
+      # dependencies of the above
+      - aiohappyeyeballs==2.7.1
+      - aiohttp==3.14.5
+      - aiosignal==1.4.0
+      - alembic==1.20.1
+      - asteroid-filterbanks==0.4.0
+      - attrs==26.1.0
+      - av==19.0.2
+      - certifi==2026.10.23
+      - charset-normalizer==3.5.2
+      - click==8.5.1
+      - cloudpickle==3.1.3
+      - colorama==0.4.6
+      - colorlog==6.12.0
+      - contourpy==1.4.0
+      - ctranslate2==4.9.0
+      - cycler==0.12.1
+      - defusedxml==0.7.1
+      - einops==0.8.2
+      - faster-whisper==1.2.1
+      - filelock==4.2.12
+      - flatbuffers==25.12.19
+      - fonttools==4.68.0
+      - frozenlist==1.8.0
+      - fsspec==2026.9.0
+      - googleapis-common-protos==1.76.0
+      - grpcio==1.85.3
+      - huggingface_hub==0.36.2
+      - idna==3.20
+      - jinja2==3.1.6
+      - joblib==1.6.0
+      - julius==0.2.8
+      - kiwisolver==1.5.1
+      - lightning==2.6.6
+      - lightning-utilities==0.15.3
+      - mako==1.4.3
+      - markdown-it-py==4.3.0
+      - markupsafe==3.0.4
+      - matplotlib==3.11.2
+      - mdurl==0.1.2
+      - mpmath==1.3.0
+      - multidict==7.2.1
+      - narwhals==2.29.0
+      - networkx==3.7
+      - nltk==3.10.4
+      - numpy==2.5.5
+      - omegaconf==2.4.0
+      - onnxruntime==1.32.0
+      - opentelemetry-api==1.45.2
+      - opentelemetry-exporter-http-transport==0.66b2
+      - opentelemetry-exporter-otlp==1.45.2
+      - opentelemetry-exporter-otlp-common==0.66b2
+      - opentelemetry-exporter-otlp-proto-common==1.45.2
+      - opentelemetry-exporter-otlp-proto-grpc==1.45.2
+      - opentelemetry-exporter-otlp-proto-http==1.45.2
+      - opentelemetry-proto==1.45.2
+      - opentelemetry-sdk==1.45.2
+      - opentelemetry-semantic-conventions==0.66b2
+      - optuna==5.1.0
+      - pandas==3.1.1
+      - pillow==13.0.0
+      - primepy==1.3
+      - propcache==0.5.4
+      - protobuf==7.36.2
+      - pyannote-audio==4.1.0
+      - pyannote-core==6.1.0
+      - pyannote-database==6.3.0
+      - pyannote-metrics==4.2.0
+      - pyannote-pipeline==4.1.0
+      - pyannoteai-sdk==0.4.0
+      - pygments==2.21.0
+      - pyparsing==3.3.3
+      - python-dateutil==4.0.0
+      - pytorch-lightning==2.6.6
+      - pytorch-metric-learning==2.9.0
+      - pyyaml==6.0.3
+      - regex==2026.9.29     # 2026.11.x releases were under two weeks old at pinning time
+      - requests==2.34.2
+      - rich==15.0.0
+      - safetensors==0.8.0
+      - scikit-learn==1.9.1
+      - scipy==1.18.1
+      - setuptools==84.2.1
+      - sortedcontainers==2.4.0
+      - sqlalchemy==2.1.9
+      - sympy==1.14.0
+      - threadpoolctl==3.8.0
+      - tokenizers==0.22.2
+      - torch-audiomentations==0.12.0
+      - torch_pitch_shift==1.2.5
+      - torchcodec==0.7.0
+      - torchmetrics==1.9.0
+      - tqdm==4.70.1
+      - transformers==4.57.6
+      - typing_extensions==4.16.0
+      - tzdata==2026.6
+      - urllib3==2.8.0
+      - yarl==1.25.1
