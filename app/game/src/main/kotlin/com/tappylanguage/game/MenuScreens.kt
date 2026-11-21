@@ -174,6 +174,8 @@ fun AboutPackScreen(
     }
     if (credits.any { it.excerpt }) Body("* excerpt cut from a longer recording", Muted)
     if (credits.isEmpty()) Body("(no attribution data in this build)", Muted)
+    // CC BY-SA: credit the source and say the text was changed (targets are shortened/edited glosses).
+    Body("Translations: adapted (shortened and edited) from English Wiktionary, CC BY-SA 4.0, https://en.wiktionary.org", Muted)
     Body("Word frequency: hermitdave/FrequencyWords (el_50k), CC BY-SA 4.0, https://github.com/hermitdave/FrequencyWords", Muted)
 }
 

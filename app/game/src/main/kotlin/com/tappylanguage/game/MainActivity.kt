@@ -12,6 +12,7 @@ import java.io.File
 
 private const val PACK = "packs/el-prototype.json"
 private const val CREDITS = "packs/el-prototype-credits.json"
+private const val PAIR = "packs/el-en.json"
 private const val LANGUAGE_NAME = "Greek"
 
 /**
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var progressStore: ProgressStore
     private lateinit var playLog: PlayLog
     private val pack by lazy { PackLoader.load(assets, PACK) }
+    private val pair by lazy { PackLoader.loadPair(assets, PAIR) }
 
     private var screen by mutableStateOf(Screen.MENU)
     /** Created on the first Play; kept (paused) while the menu shows; dropped on reset. */
@@ -43,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     Screen.HOW_TO_PLAY -> HowToPlayScreen(onBack = ::showMenu)
                     Screen.ABOUT_PACK -> AboutPackScreen(
                         LANGUAGE_NAME,
-                        PackInfo.progress(pack, progressStore, System.currentTimeMillis()),
+                        PackInfo.progress(pack, pair, progressStore, System.currentTimeMillis()),
                         PackInfo.credits(assets, CREDITS),
                         onBack = ::showMenu,
                     )
@@ -55,7 +57,7 @@ class MainActivity : ComponentActivity() {
 
     /** Each Play is a session start: a new game applies the session-start level; a paused one resumes. */
     private fun play() {
-        val c = controller ?: GameController(pack, progressStore, playLog, audio).also { controller = it }
+        val c = controller ?: GameController(pack, pair, progressStore, playLog, audio).also { controller = it }
         c.resume()
         screen = Screen.GAME
     }

@@ -14,6 +14,8 @@ plugins {
 abstract class BuildPackTask : DefaultTask() {
     @get:InputFile abstract val sourcePack: RegularFileProperty
     @get:InputFile abstract val index: RegularFileProperty
+    /** Pair pack source (translations); copied with only the translations whose Greek item is kept. */
+    @get:InputFile abstract val pairPack: RegularFileProperty
     @get:InputFiles abstract val audioFiles: ConfigurableFileCollection
     @get:OutputDirectory abstract val outputDir: DirectoryProperty
 
@@ -41,7 +43,16 @@ abstract class BuildPackTask : DefaultTask() {
                 "excerpt" to !row["start_ms"].isNullOrBlank())
         }
         write("packs/$name-credits.json", mapOf("audio" to credits))
-        logger.lifecycle("buildPack: ${kept.size} items kept, ${dropped.size} dropped, ${credits.size} credits")
+
+        val keptTexts = kept.map { it["text"] as String }.toSet()
+        @Suppress("UNCHECKED_CAST")
+        val pair = JsonSlurper().parse(pairPack.get().asFile, "UTF-8") as MutableMap<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val translations = (pair["translations"] as List<Map<String, Any?>>).filter { it["language1"] in keptTexts }
+        pair["translations"] = translations
+        write("packs/${pairPack.get().asFile.name}", pair)
+        logger.lifecycle("buildPack: ${kept.size} items kept, ${dropped.size} dropped, ${credits.size} credits, " +
+            "${translations.size} translations")
     }
 
     private fun write(relative: String, value: Any) {
@@ -107,6 +118,7 @@ val audioDir = "../../data/language/greek/commons"
 val buildPack = tasks.register<BuildPackTask>("buildPack") {
     sourcePack.set(layout.projectDirectory.file("../../data/language/greek/packs/el-prototype.json"))
     index.set(layout.projectDirectory.file("../../data/language/greek/INDEX.csv"))
+    pairPack.set(layout.projectDirectory.file("../../data/language/greek/packs/el-en.json"))
     audioFiles.from(fileTree(audioDir)) // empty (not an error) on a machine without the audio
 }
 

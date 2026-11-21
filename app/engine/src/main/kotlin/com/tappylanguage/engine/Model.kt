@@ -25,6 +25,29 @@ data class LanguagePack(
     fun item(key: String): Item? = byKey[key]
 }
 
+/**
+ * Pair pack in memory (data-model.md 1b), keyed by the learning item's match key.
+ * `sameTarget` groups words whose known-language targets would be ambiguous side by side;
+ * equal target texts count as a group automatically.
+ */
+class PairPack(
+    translations: Map<String, String>,
+    sameTarget: List<Set<String>> = emptyList(),
+) {
+    private val byKey = translations
+    private val groupOf: Map<String, Set<String>> = sameTarget.flatMap { g -> g.map { it to g } }.toMap()
+
+    fun translation(itemKey: String): String? = byKey[itemKey]
+
+    /** True when `a` and `b` must not be on screen together as known-language targets. */
+    fun conflicts(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (groupOf[a]?.contains(b) == true) return true
+        val ta = byKey[a] ?: return false
+        return ta.equals(byKey[b], ignoreCase = true)
+    }
+}
+
 /** Identifies a skill: item × combination × case (the language pair is implied by the pack). */
 data class SkillKey(
     val itemKey: String,

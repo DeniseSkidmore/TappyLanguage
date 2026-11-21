@@ -54,3 +54,5 @@ data/**
 !data/CLAUDE.md
 
 /docs/notes/**
+
+/docs/conversation*.md

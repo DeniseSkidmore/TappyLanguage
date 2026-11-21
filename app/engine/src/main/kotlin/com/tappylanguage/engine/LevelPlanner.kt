@@ -35,18 +35,40 @@ data class LevelOutcome(
 
 /**
  * Builds levels from saved skills (selection.md §7–9).
- * Prototype scope: only the learning-learning combination is unlocked; both cases are unlocked from the start.
+ * Learning-learning (both cases) is unlocked from the start. Learning-known (one case) unlocks per word once
+ * the word has a translation in `pair` and both learning-learning cases have a success ("learning").
+ * Known-learning is not built yet (needs known-language audio).
  */
 class LevelPlanner(
     private val pack: LanguagePack,
     private val store: SkillStore,
     private val random: Random = Random.Default,
+    private val pair: PairPack? = null,
 ) {
     /** §8: Max level = number of playable items in the pack. */
     val maxLevel: Int get() = pack.items.size
 
-    fun unlockedKeys(item: Item): List<SkillKey> =
+    private fun learningLearningKeys(item: Item): List<SkillKey> =
         TargetCase.entries.map { SkillKey(item.key, Combination.LEARNING_LEARNING, it) }
+
+    /** Requirements "Combinations unlock per word": the next combination unlocks once the previous one is learning. */
+    fun isLearningKnownUnlocked(item: Item): Boolean =
+        pair?.translation(item.key) != null &&
+            learningLearningKeys(item).all { store.get(it)?.lastSuccessMs != null }
+
+    fun unlockedKeys(item: Item): List<SkillKey> {
+        val keys = learningLearningKeys(item)
+        return if (isLearningKnownUnlocked(item))
+            keys + SkillKey(item.key, Combination.LEARNING_KNOWN, TargetCase.AS_WRITTEN)
+        else keys
+    }
+
+    /** Text to show for a target or distractor: the learning text in the given case, or the known-language target. */
+    fun targetText(key: SkillKey): String? {
+        val item = pack.item(key.itemKey) ?: return null
+        return if (key.combination == Combination.LEARNING_KNOWN) pair?.translation(item.key)
+        else TextForms.display(item, key.targetCase, pack.languageCode)
+    }
 
     fun recall(key: SkillKey, nowMs: Long): Double =
         store.get(key)?.let { Memory.predictedRecall(it, nowMs) } ?: 0.0
@@ -142,10 +164,19 @@ class LevelPlanner(
     /**
      * §8: the other pool words, uniformly at random (no recall rule, no weights), up to `max`;
      * so every target gets the same count, min(max, pool size - 1). Level 1 (pool of 1) has none.
+     * Learning-known: distractors show their known-language target, so only words with a translation qualify,
+     * and words whose target conflicts with the target's (same text or a same-target group) are left out.
      */
-    fun distractors(target: SkillKey, pool: List<Item>, max: Int = Params.MAX_ON_SCREEN - 1): List<SkillKey> =
-        pool.filter { it.key != target.itemKey }.shuffled(random).take(max)
+    fun distractors(target: SkillKey, pool: List<Item>, max: Int = Params.MAX_ON_SCREEN - 1): List<SkillKey> {
+        if (target.combination == Combination.LEARNING_KNOWN) {
+            val p = pair ?: return emptyList()
+            return pool.filter { p.translation(it.key) != null && !p.conflicts(target.itemKey, it.key) }
+                .shuffled(random).take(max)
+                .map { SkillKey(it.key, Combination.LEARNING_KNOWN, TargetCase.AS_WRITTEN) }
+        }
+        return pool.filter { it.key != target.itemKey }.shuffled(random).take(max)
             .map { SkillKey(it.key, target.combination, TargetCase.entries.random(random)) }
+    }
 
     /**
      * §9: up 1 above 90% overall; else stay while established words are hit at least 80%

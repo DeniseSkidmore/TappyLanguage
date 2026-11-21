@@ -3,6 +3,7 @@ package com.tappylanguage.game
 import android.content.res.AssetManager
 import com.tappylanguage.engine.LanguagePack
 import com.tappylanguage.engine.LevelPlanner
+import com.tappylanguage.engine.PairPack
 import com.tappylanguage.engine.Params
 import com.tappylanguage.engine.SkillStore
 import org.json.JSONObject
@@ -65,10 +66,10 @@ object PackInfo {
      * Every pack word with its recall (weakest skill, as the game uses), most proficient first,
      * so the chips read as a progress bar: fluent (green), learning (yellow → grey), then not started.
      */
-    fun progress(pack: LanguagePack, progressStore: ProgressStore, nowMs: Long): List<WordProgress> {
+    fun progress(pack: LanguagePack, pair: PairPack?, progressStore: ProgressStore, nowMs: Long): List<WordProgress> {
         val skills = SkillStore(pack)
         progressStore.load(skills)
-        val planner = LevelPlanner(pack, skills)
+        val planner = LevelPlanner(pack, skills, pair = pair)
         return pack.items.map { item ->
             val r = planner.wordRecall(item, nowMs)
             val state = when {

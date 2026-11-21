@@ -7,17 +7,18 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import com.tappylanguage.engine.Combination
 import com.tappylanguage.engine.LanguagePack
 import com.tappylanguage.engine.LevelPlan
 import com.tappylanguage.engine.LevelPlanner
 import com.tappylanguage.engine.LevelTally
 import com.tappylanguage.engine.ModeProgress
+import com.tappylanguage.engine.PairPack
 import com.tappylanguage.engine.Params
 import com.tappylanguage.engine.Play
 import com.tappylanguage.engine.PlayOutcome
 import com.tappylanguage.engine.SkillKey
 import com.tappylanguage.engine.SkillStore
-import com.tappylanguage.engine.TextForms
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -47,6 +48,7 @@ enum class LevelChange { DOWN, SAME, UP }
  */
 class GameController(
     private val pack: LanguagePack,
+    pair: PairPack?,
     private val progressStore: ProgressStore,
     private val playLog: PlayLog,
     private val audio: AudioPlayer,
@@ -55,7 +57,7 @@ class GameController(
     enum class Phase { PLAYING, SHOW_ANSWER, BETWEEN_LEVELS, PAUSED }
 
     private val skills = SkillStore(pack)
-    private val planner = LevelPlanner(pack, skills, random)
+    private val planner = LevelPlanner(pack, skills, random, pair)
     private var progress: ModeProgress = progressStore.load(skills)
 
     var phase by mutableStateOf(Phase.PLAYING); private set
@@ -231,14 +233,11 @@ class GameController(
         val key = plan.targets[targetIndex++]
         val item = pack.item(key.itemKey) ?: return
         val fallMs = planner.fallTimeMs(skills.getOrCreate(key))
-        val words = mutableListOf(
-            FallingWord(nextId++, key, TextForms.display(item, key.targetCase, pack.languageCode), true,
-                random.nextFloat(), 0L, fallMs),
-        )
+        val targetText = planner.targetText(key) ?: return
+        val words = mutableListOf(FallingWord(nextId++, key, targetText, true, random.nextFloat(), 0L, fallMs))
         planner.distractors(key, plan.pool).forEach { d ->
-            val dItem = pack.item(d.itemKey) ?: return@forEach
-            words += FallingWord(nextId++, d, TextForms.display(dItem, d.targetCase, pack.languageCode), false,
-                random.nextFloat(), 0L, fallMs)
+            val text = planner.targetText(d) ?: return@forEach
+            words += FallingWord(nextId++, d, text, false, random.nextFloat(), 0L, fallMs)
         }
         falling.clear()
         pendingEntries.clear()
@@ -275,7 +274,9 @@ class GameController(
         tally = tally.add(clean = false, established = target.skill.itemKey in plan.establishedKeys)
         bursts += Burst(target.xFraction, 1f, Color(0xFFE53935), now)
         endPrompt()
-        message = target.text
+        // Learning-known: show the Greek with its meaning, since the player heard Greek.
+        message = if (target.skill.combination == Combination.LEARNING_KNOWN)
+            "${pack.item(target.skill.itemKey)?.text ?: ""} = ${target.text}" else target.text
         phaseEndsMs = now + ANSWER_FLASH_MS
         phase = Phase.SHOW_ANSWER
     }

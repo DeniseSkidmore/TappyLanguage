@@ -208,6 +208,45 @@ class LevelPlannerTest {
         assertEquals(1, planner.levelResult(1, tally(0, 10, 0, 0)).nextLevel)    // no established: stay
     }
 
+    private val k = TextForms::matchKey
+    private val pair = PairPack(
+        mapOf(k("ναι") to "yes", k("όχι") to "no", k("και") to "and", k("μέρα") to "day", k("ημέρα") to "day",
+            k("μητέρα") to "mother", k("μάνα") to "mom"),
+        listOf(setOf(k("μητέρα"), k("μάνα"))),
+    )
+
+    @Test fun `learning-known unlocks only after both learning-learning cases succeed`() {
+        val store = SkillStore(pack)
+        val planner = LevelPlanner(pack, store, Random(9), pair)
+        val nai = pack.items.first { it.text == "ναι" }
+        assertEquals(2, planner.unlockedKeys(nai).size)
+        store.put(Skill(ll("ναι"), difficulty = 0.3, lastSuccessMs = T0, lastPlayedMs = T0))
+        assertEquals(2, planner.unlockedKeys(nai).size) // ALL_CAPS not yet
+        store.put(Skill(ll("ναι", TargetCase.ALL_CAPS), difficulty = 0.3, lastSuccessMs = T0, lastPlayedMs = T0))
+        val keys = planner.unlockedKeys(nai)
+        assertTrue(SkillKey(nai.key, Combination.LEARNING_KNOWN, TargetCase.AS_WRITTEN) in keys)
+        assertEquals("yes", planner.targetText(keys.last()))
+    }
+
+    @Test fun `no learning-known without a translation`() {
+        val store = SkillStore(pack)
+        known(store, 0.9, "ναι")
+        val planner = LevelPlanner(pack, store, pair = PairPack(emptyMap()))
+        assertEquals(2, planner.unlockedKeys(pack.items.first { it.text == "ναι" }).size)
+    }
+
+    @Test fun `learning-known distractors skip same-target words`() {
+        val words = pack("μέρα", "ημέρα", "μητέρα", "μάνα", "ναι")
+        val planner = LevelPlanner(words, SkillStore(words), Random(10), pair)
+        repeat(200) {
+            val d = planner.distractors(SkillKey(k("μέρα"), Combination.LEARNING_KNOWN, TargetCase.AS_WRITTEN), words.items)
+            assertEquals(setOf(k("μητέρα"), k("μάνα"), k("ναι")), d.map { it.itemKey }.toSet()) // ημέρα: same "day"
+            val m = planner.distractors(SkillKey(k("μητέρα"), Combination.LEARNING_KNOWN, TargetCase.AS_WRITTEN), words.items)
+            assertTrue(m.none { it.itemKey == k("μάνα") }) // same-target group
+            assertTrue((d + m).all { it.combination == Combination.LEARNING_KNOWN })
+        }
+    }
+
     @Test fun `session start keeps the level for a daily player and drops it after a long break`() {
         val store = SkillStore(pack)
         known(store, 0.9, "ναι", "όχι", "και")

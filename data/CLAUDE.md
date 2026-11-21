@@ -4,7 +4,7 @@ Loaded when working with files under `data/`. Root rule still applies: never use
 ## Layout
 - Language data: `data/language/<language>/<source>/` (e.g. `data/language/greek/commons/`). GUI image data: `data/graphics/<source>/`.
 - Each of `data/language/<language>/` and `data/graphics/` keeps an `INDEX.csv`, one row per file: `path,source_url,author,license,retrieved`. Rows for audio slices also carry `start_ms,end_ms` (a slice is a modification: the credits mark it as an excerpt).
-- Pack sources (our own text data, CC BY-SA): `data/language/<language>/packs/*.json`. The app's `buildPack` task reads them and drops items whose audio file is missing.
+- Pack sources (our own text data, CC BY-SA): `data/language/<language>/packs/*.json`: the language pack (e.g. `el-prototype.json`) and pair packs (e.g. `el-en.json`, translations adapted from English Wiktionary). The app's `buildPack` task reads them and drops items whose audio file is missing, and their translations.
 - Lookup cache: `data/language/<language>/cache/` (Commons file list and per-file author/license, Wiktionary definitions). Check it before any request; never request what is already cached.
 
 ## Git
