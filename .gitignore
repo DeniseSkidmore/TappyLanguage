@@ -2,6 +2,8 @@
 .gradle/
 build/
 .kotlin/
+# Per-machine build counter (bumpBuildNumber, app/game/build.gradle.kts)
+build-number.txt
 
 # Local configuration file (sdk path, etc)
 local.properties

@@ -6,6 +6,8 @@
       "Read(./**)",
       "Edit(./docs/**)",
       "Write(./docs/**)",
+      "Edit(./environment.yml)",
+      "Write(./environment.yml)",
       "WebSearch",
       "WebFetch",
       "Bash(git status*)",

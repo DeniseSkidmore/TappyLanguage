@@ -190,7 +190,7 @@ private fun WordChip(word: WordProgress, modifier: Modifier) {
 
 @Composable
 fun AboutAppScreen(versionName: String, onBack: () -> Unit) = Page("About App", onBack) {
-    Body("TappyLanguage $versionName")
+    Body("TappyLanguage $versionName (build ${BuildInfo.BUILD_NUMBER})")
     Body("Copyright (C) 2026 TappyLanguage contributors: https://github.com/DeniseSkidmore/TappyLanguage/graphs/contributors")
     Body("This program is free software: you can redistribute it and/or modify it under the terms of the " +
         "GNU General Public License as published by the Free Software Foundation, either version 3 of the " +
